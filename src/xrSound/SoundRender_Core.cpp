@@ -6,6 +6,8 @@
 #include "SoundRender_Core.h"
 #include "SoundRender_Source.h"
 #include "SoundRender_Emitter.h"
+#include "SoundRender_EmitterF.h"
+#include "SoundRender_CoreF.h"
 
 #include "NotificationClient.h"
 
@@ -314,7 +316,7 @@ void CSoundRender_Core::attach_tail(ref_sound& S, const char* fName)
 	CSoundRender_Source* s = SoundRender->i_create_source(fn);
 	S._p->dwBytesTotal += s->bytes_total();
 	S._p->fTimeTotal += s->length_sec();
-	if (S._feedback())
+	if (S._feedback() && !S._feedback()->is_fmod_backed())
 		((CSoundRender_Emitter*)S._feedback())->fTimeToStop += s->length_sec();
 
 	SoundRender->i_destroy_source(s);
@@ -338,10 +340,27 @@ void CSoundRender_Core::play(ref_sound& S, CObject* O, u32 flags, float delay)
 {
 	if (!bPresent || (0==S._handle())) return;
 	S._p->g_object = O;
-	if (S._feedback()) ((CSoundRender_Emitter*)S._feedback())->rewind();
-	else i_play(&S, flags & sm_Looped, delay);
 
-	if ((flags & sm_2D) || (S._handle()->channels_num() == 2))
+	bool want_2d = (flags & sm_2D) || (S._handle()->channels_num() == 2);
+
+	if (S._feedback())
+	{
+		S._feedback()->rewind();
+	}
+	else if (want_2d && FMODCore_Available())
+	{
+		CSoundRender_EmitterF* EF = xr_new<CSoundRender_EmitterF>();
+		S._p->feedback = EF;
+		EF->start(&S, flags & sm_Looped, delay);
+	}
+	else
+	{
+		i_play(&S, flags & sm_Looped, delay);
+	}
+
+	if (!S._feedback()) return;
+
+	if (want_2d)
 		S._feedback()->switch_to_2D();
 
 	if (flags & sm_Intro)
@@ -363,20 +382,34 @@ void CSoundRender_Core::play_no_feedback(ref_sound& S, CObject* O, u32 flags, fl
 	S._p->fn_attached[0] = orig->fn_attached[0];
 	S._p->fn_attached[1] = orig->fn_attached[1];
 
-	i_play(&S, flags & sm_Looped, delay);
+	bool want_2d = (flags & sm_2D) || (S._handle()->channels_num() == 2);
 
-	if (flags & sm_2D || S._handle()->channels_num() == 2)
-		S._feedback()->switch_to_2D();
-
-	if (flags & sm_Intro)
+	if (want_2d && FMODCore_Available())
 	{
-		S._feedback()->switch_to_Intro();
+		CSoundRender_EmitterF* EF = xr_new<CSoundRender_EmitterF>();
+		S._p->feedback = EF;
+		EF->start(&S, flags & sm_Looped, delay);
+	}
+	else
+	{
+		i_play(&S, flags & sm_Looped, delay);
 	}
 
-	if (pos) S._feedback()->set_position(*pos);
-	if (freq) S._feedback()->set_frequency(*freq);
-	if (range) S._feedback()->set_range((*range)[0], (*range)[1]);
-	if (vol) S._feedback()->set_volume(*vol);
+	if (S._feedback())
+	{
+		if (want_2d)
+			S._feedback()->switch_to_2D();
+
+		if (flags & sm_Intro)
+		{
+			S._feedback()->switch_to_Intro();
+		}
+
+		if (pos) S._feedback()->set_position(*pos);
+		if (freq) S._feedback()->set_frequency(*freq);
+		if (range) S._feedback()->set_range((*range)[0], (*range)[1]);
+		if (vol) S._feedback()->set_volume(*vol);
+	}
 	S._p = orig;
 }
 
@@ -384,11 +417,28 @@ void CSoundRender_Core::play_at_pos(ref_sound& S, CObject* O, const Fvector &pos
 {
 	if (!bPresent || (0 == S._handle())) return;
 	S._p->g_object = O;
-	if (S._feedback()) ((CSoundRender_Emitter*)S._feedback())->rewind();
-	else i_play(&S, flags & sm_Looped, delay);
+
+	bool want_2d = (flags & sm_2D) || (S._handle()->channels_num() == 2);
+
+	if (S._feedback())
+	{
+		S._feedback()->rewind();
+	}
+	else if (want_2d && FMODCore_Available())
+	{
+		CSoundRender_EmitterF* EF = xr_new<CSoundRender_EmitterF>();
+		S._p->feedback = EF;
+		EF->start(&S, flags & sm_Looped, delay);
+	}
+	else
+	{
+		i_play(&S, flags & sm_Looped, delay);
+	}
+
+	if (!S._feedback()) return;
 
 	S._feedback()->set_position(pos);
-	if ((flags & sm_2D) || (S._handle()->channels_num() == 2))
+	if (want_2d)
 		S._feedback()->switch_to_2D();
 
 	if (flags & sm_Intro)
@@ -401,8 +451,7 @@ void CSoundRender_Core::destroy(ref_sound& S)
 {
 	if (S._feedback())
 	{
-		CSoundRender_Emitter* E = (CSoundRender_Emitter*)S._feedback();
-		E->stop(FALSE);
+		S._feedback()->stop(FALSE);
 	}
 	S._p = 0;
 }
@@ -426,8 +475,7 @@ void CSoundRender_Core::_destroy_data(ref_sound_data& S)
 {
 	if (S.feedback)
 	{
-		CSoundRender_Emitter* E = (CSoundRender_Emitter*)S.feedback;
-		E->stop(FALSE);
+		S.feedback->stop(FALSE);
 	}
 	R_ASSERT(0==S.feedback);
 	SoundRender->i_destroy_source((CSoundRender_Source*)S.handle);

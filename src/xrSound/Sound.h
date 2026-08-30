@@ -337,6 +337,11 @@ public:
 	virtual void set_fade_in(float duration_s, int curve) = 0;
 	virtual const CSound_params* get_params() = 0;
 	virtual u32 play_time() = 0;
+	virtual void rewind() = 0;
+	// Cheap type discriminator: lets code that must touch backend-specific
+	// internals (e.g. CSoundRender_Emitter::fTimeToStop in attach_tail())
+	// guard against an FMOD-backed emitter instead of blindly casting.
+	virtual bool is_fmod_backed() const { return false; }
 };
 
 /// definition (Sound Stream Interface)

@@ -7,6 +7,7 @@
 #include "SoundRender_TargetA.h"
 #include "SoundRender_Source.h"
 #include "SoundRender_CoreA.h"
+#include "SoundRender_CoreF.h"
 
 CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
 {
@@ -38,6 +39,7 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	bLocked = TRUE;
 	float new_tm = Timer.GetElapsed_sec();
 	fTimer_Delta = new_tm - fTimer_Value;
+	FMODCore_Update(fTimer_Delta);
 	//.	float dt					= float(Timer_Delta)/1000.f;
 	float dt_sec = fTimer_Delta;
 	fTimer_Value = new_tm;
