@@ -31,6 +31,12 @@ CSoundRender_Emitter::CSoundRender_Emitter(void)
 	smooth_volume = 1.f;
 	occluder_volume = 1.f;
 	fade_volume = 1.f;
+	fade_out_duration_s = 0.1f;
+	fade_in_duration_s = 0.f;
+	fade_out_curve = 0;
+	fade_in_curve = 0;
+	fade_out_elapsed = 0.f;
+	fade_in_elapsed = 0.f;
 	occluder[0].set(0, 0, 0);
 	occluder[1].set(0, 0, 0);
 	occluder[2].set(0, 0, 0);

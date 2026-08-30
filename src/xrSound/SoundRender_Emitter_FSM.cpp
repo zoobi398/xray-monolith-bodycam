@@ -343,7 +343,28 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 	if (b2D)
 	{
 		occluder_volume = 1.f;
-		fade_volume += dt * 10.f * (bStopping ? -1.f : 1.f);
+		const float HALF_PI = 1.5707963267948966f;
+		if (bStopping)
+		{
+			fade_out_elapsed += dt;
+			float dur = (fade_out_duration_s > 0.f) ? fade_out_duration_s : 0.1f;
+			float p = fade_out_elapsed / dur;
+			clamp(p, 0.f, 1.f);
+			if (p >= 1.f) fade_volume = 0.f;
+			else fade_volume = (fade_out_curve == 1) ? cosf(p * HALF_PI) : (1.f - p);
+		}
+		else if (fade_in_duration_s > 0.f)
+		{
+			fade_in_elapsed += dt;
+			float p = fade_in_elapsed / fade_in_duration_s;
+			clamp(p, 0.f, 1.f);
+			if (p >= 1.f) fade_volume = 1.f;
+			else fade_volume = (fade_in_curve == 1) ? sinf(p * HALF_PI) : p;
+		}
+		else
+		{
+			fade_volume = 1.f;
+		}
 		volume_att = p_source.volume;
 	}
 	else

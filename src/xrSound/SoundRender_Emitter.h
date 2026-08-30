@@ -48,6 +48,12 @@ public:
 	float smooth_volume;
 	float occluder_volume; // USER
 	float fade_volume;
+	float fade_out_duration_s;
+	float fade_in_duration_s;
+	int   fade_out_curve; // 0 = linear, 1 = equal-power
+	int   fade_in_curve;  // 0 = linear, 1 = equal-power
+	float fade_out_elapsed;
+	float fade_in_elapsed;
 	Fvector occluder [3];
 
 	State m_current_state;
@@ -123,6 +129,8 @@ public:
 	void update_environment(float dt);
 	void rewind();
 	virtual void stop(BOOL bDeffered);
+	virtual void set_fade_out(float duration_s, int curve);
+	virtual void set_fade_in(float duration_s, int curve);
 	void pause(BOOL bVal, int id);
 
 	virtual u32 play_time();
