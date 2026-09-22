@@ -1,0 +1,62 @@
+--- Bodycam viewmodel recoil-follow options tree for modded EXE builds.
+--- Separate page from the main Bodycam tab so these Insurgency-recoil-only settings
+--- (no effect on any weapon without insurgency_recoil=1 in its .ltx) don't get lost
+--- among the general Bodycam sliders.
+
+options_builder.import_into(this)
+
+local bodycam_path = "gameplay/bodycam_recoil"
+local bodycam_opt_prefix = "modded_exes/" .. bodycam_path .. "/"
+
+local function get_num(key, def)
+    if bodycam and bodycam.get_float then
+        return bodycam.get_float(key, def or 0)
+    end
+    return def or 0
+end
+
+local function set_num(key, id)
+    local value = ui_options.opt_temp[bodycam_opt_prefix .. id]
+    if value == nil or not (bodycam and bodycam.set_float) then
+        return
+    end
+    bodycam.set_float(key, tonumber(value) or 0)
+end
+
+local function bodycam_num(args)
+    args.curr = { get_num, args.key, args.def }
+    args.functor = { set_num, args.key, args.id }
+    args.prec = args.prec or 1
+    args.cmd = false
+    return track(args)
+end
+
+local function label(id)
+    return "ui_mm_modded_exes_gameplay_bodycam_recoil_" .. id
+end
+
+PAGE = page {
+    { id = "bodycam_recoil" },
+
+    line {},
+    bodycam_num { id = "vm_recoil_rotation_scale_vert", text = label("vm_recoil_rotation_scale_vert"), def = 0.2, min = 0.0, max = 2.0, step = 0.01, prec = 2, key = "vm_recoil_rotation_scale_vert" },
+    bodycam_num { id = "vm_recoil_rotation_scale_horz", text = label("vm_recoil_rotation_scale_horz"), def = 0.2, min = 0.0, max = 2.0, step = 0.01, prec = 2, key = "vm_recoil_rotation_scale_horz" },
+    bodycam_num { id = "vm_recoil_position_scale_vert", text = label("vm_recoil_position_scale_vert"), def = 0.0005, min = 0.0, max = 0.01, step = 0.0001, prec = 4, key = "vm_recoil_position_scale_vert" },
+    bodycam_num { id = "vm_recoil_position_scale_horz", text = label("vm_recoil_position_scale_horz"), def = 0.0005, min = 0.0, max = 0.01, step = 0.0001, prec = 4, key = "vm_recoil_position_scale_horz" },
+    bodycam_num { id = "vm_recoil_follow_speed_vert", text = label("vm_recoil_follow_speed_vert"), def = 6.0, min = 0.1, max = 30.0, step = 0.1, key = "vm_recoil_follow_speed_vert" },
+    bodycam_num { id = "vm_recoil_follow_damping_vert", text = label("vm_recoil_follow_damping_vert"), def = 0.75, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_follow_damping_vert" },
+    bodycam_num { id = "vm_recoil_follow_speed_horz", text = label("vm_recoil_follow_speed_horz"), def = 6.0, min = 0.1, max = 30.0, step = 0.1, key = "vm_recoil_follow_speed_horz" },
+    bodycam_num { id = "vm_recoil_follow_damping_horz", text = label("vm_recoil_follow_damping_horz"), def = 0.75, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_follow_damping_horz" },
+    bodycam_num { id = "vm_recoil_ads_scale", text = label("vm_recoil_ads_scale"), def = 0.0, min = 0.0, max = 1.0, step = 0.05, prec = 2, key = "vm_recoil_ads_scale" },
+    bodycam_num { id = "vm_recoil_pivot_y", text = label("vm_recoil_pivot_y"), def = -0.05, min = -0.5, max = 0.5, step = 0.01, prec = 2, key = "vm_recoil_pivot_y" },
+    bodycam_num { id = "vm_recoil_pivot_z", text = label("vm_recoil_pivot_z"), def = 0.12, min = -0.5, max = 0.5, step = 0.01, prec = 2, key = "vm_recoil_pivot_z" },
+    line {},
+    bodycam_num { id = "vm_recoil_decomp_impulse", text = label("vm_recoil_decomp_impulse"), def = 8.0, min = 0.0, max = 30.0, step = 0.5, prec = 1, key = "vm_recoil_decomp_impulse" },
+    bodycam_num { id = "vm_recoil_decomp_vertical_scale", text = label("vm_recoil_decomp_vertical_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_decomp_vertical_scale" },
+    bodycam_num { id = "vm_recoil_decomp_forward_scale", text = label("vm_recoil_decomp_forward_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_decomp_forward_scale" },
+    bodycam_num { id = "vm_recoil_decomp_pitch_scale", text = label("vm_recoil_decomp_pitch_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_decomp_pitch_scale" },
+    bodycam_num { id = "vm_recoil_decomp_horizontal_scale", text = label("vm_recoil_decomp_horizontal_scale"), def = 0.3, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "vm_recoil_decomp_horizontal_scale" },
+    bodycam_num { id = "vm_recoil_decomp_ads_scale", text = label("vm_recoil_decomp_ads_scale"), def = 0.5, min = 0.0, max = 1.0, step = 0.05, prec = 2, key = "vm_recoil_decomp_ads_scale" },
+    line {},
+    list_bool { id = "g_insurgency_recoil_debug_log", text = label("g_insurgency_recoil_debug_log") },
+}

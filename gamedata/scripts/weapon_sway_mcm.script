@@ -1,0 +1,41 @@
+-- Compatibility shim (18/09 follow-up), replaces [TheTazDJ] Weapon Sway + Custom breath hold Sounds'
+-- own weapon_sway_mcm.script now that that mod is fully retired (weapon_sway.script itself dropped, its
+-- sway_1.anm/sway_2.anm assets copied into this mod's gamedata/anims/weapon_sway/) -- but ZZZ Patch's
+-- zzz_player_injuries.script (shaking_hands(), the arm-injury shake) still calls weapon_sway_mcm.get_config
+-- for ~24 keys unconditionally, so removing this file outright would break that function with a nil-index
+-- error every time NEW_LIMB_PENALTIES_FEATURE is on. This provides exactly the same keys/values TheTazDJ's
+-- own defaults table did, with weapon_sway_feature and hold_breath_feature hardcoded false (both real
+-- effects are fully superseded by the native bodycam sway engine -- see Bodycam Weapon Sway MCM tab), and
+-- no MCM page of its own since nothing should ever need to change these again.
+
+local defaults = {
+	["weapon_sway_feature"] = false,
+	["sway_keybind"] = DIK_keys.DIK_F,
+	["animation_type"] = 1,
+	["animation_type_scope"] = 1,
+	["max_effect_power"] = 3,
+	["weight_factor"] = 1,
+	["max_power_weight"] = 7,
+	["power_stand"] = 1.2,
+	["power_crouch"] = 0.8,
+	["power_low_crouch"] = 0.4,
+	["power_stand_scoped"] = 1.2,
+	["power_crouch_scoped"] = 0.8,
+	["power_low_crouch_scoped"] = 0.4,
+	["weapon_mount_feature"] = true,
+	["weapon_mounted_power"] = 0.1,
+	["y_axis_mounted_distance"] = -0.35,
+	["hold_breath_feature"] = false,
+	["hold_breath_mult"] = 0.1,
+	["release_breath_mult"] = 1.35,
+	["max_hold_breath_time"] = 11,
+	["breath_restore_mult"] = 0.5,
+	["breath_threshold"] = 2,
+	["enable_breath_sound"] = true,
+	["handling_mult"] = 1,
+	["debugx"] = false,
+}
+
+function get_config(key)
+	return defaults[key]
+end

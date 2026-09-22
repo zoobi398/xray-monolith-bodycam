@@ -280,6 +280,7 @@ extern CrosshairSettings g_crosshair_device_far;
 	CrosshairLineCommands(crosshair, suffix)
 
 extern BOOL g_decouple_horz_recoil;
+extern BOOL g_insurgency_recoil_debug_log;
 extern BOOL g_use_non_linear_inertia;
 
 extern float recon_show_speed;
@@ -2968,6 +2969,7 @@ void CCC_RegisterCommands()
 	CrosshairFarCommands(g_crosshair_device_far, "device_far");
 
 	CMD4(CCC_Integer, "g_decouple_horz_recoil", &g_decouple_horz_recoil, 0, 1);
+	CMD4(CCC_Integer, "g_insurgency_recoil_debug_log", &g_insurgency_recoil_debug_log, 0, 1);
 	CMD4(CCC_Integer, "g_launcher_dynamic_range_zoom", &g_launcher_dynamic_range_zoom, 0, 1);
 	CMD4(CCC_Integer, "g_use_non_linear_inertia", &g_use_non_linear_inertia, 0, 1);
 

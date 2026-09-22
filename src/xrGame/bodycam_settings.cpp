@@ -64,6 +64,19 @@ static FloatBinding g_float_bindings[] = {
 	BODYCAM_FLOAT(vm_ads_anchor_position_scale, viewmodel.ads_anchor_pos, 0.f, 0.25f),
 	BODYCAM_FLOAT(vm_ads_anchor_rotation_scale, viewmodel.ads_anchor_rot, 0.f, 30.f),
 
+	// Insurgency-recoil viewmodel follow (no-op for weapons without insurgency_recoil=1).
+	BODYCAM_FLOAT(vm_recoil_follow_speed_vert, viewmodel.recoil_follow_speed_vert, 0.1f, 30.f),
+	BODYCAM_FLOAT(vm_recoil_follow_damping_vert, viewmodel.recoil_follow_damping_vert, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_follow_speed_horz, viewmodel.recoil_follow_speed_horz, 0.1f, 30.f),
+	BODYCAM_FLOAT(vm_recoil_follow_damping_horz, viewmodel.recoil_follow_damping_horz, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_position_scale_vert, viewmodel.recoil_pos_scale_vert, 0.f, 0.01f),
+	BODYCAM_FLOAT(vm_recoil_position_scale_horz, viewmodel.recoil_pos_scale_horz, 0.f, 0.01f),
+	BODYCAM_FLOAT(vm_recoil_rotation_scale_vert, viewmodel.recoil_rot_scale_vert, 0.f, 2.f),
+	BODYCAM_FLOAT(vm_recoil_rotation_scale_horz, viewmodel.recoil_rot_scale_horz, 0.f, 2.f),
+	BODYCAM_FLOAT(vm_recoil_ads_scale, viewmodel.recoil_ads_mult, 0.f, 1.f),
+	BODYCAM_FLOAT(vm_recoil_pivot_y, viewmodel.recoil_pivot_y, -0.5f, 0.5f),
+	BODYCAM_FLOAT(vm_recoil_pivot_z, viewmodel.recoil_pivot_z, -0.5f, 0.5f),
+
 	// Camera movement response and shared movement filtering.
 	BODYCAM_FLOAT(movement_camera_roll_scale, camera.move_roll, 0.f, 20.f),
 	BODYCAM_FLOAT(movement_camera_position_scale, camera.move_pos, 0.f, 0.25f),
@@ -101,6 +114,17 @@ static FloatBinding g_float_bindings[] = {
 	BODYCAM_FLOAT(mouse_flick_impulse, impulse.flick_impulse, 0.f, 5.f),
 	BODYCAM_FLOAT(hip_fire_weapon_impulse, impulse.fire_impulse, 0.f, 5.f),
 	BODYCAM_FLOAT(ads_fire_weapon_impulse, impulse.ads_fire_impulse, 0.f, 5.f),
+
+	// Recoil decompensation (21/09, lives in the Bodycam Weapon Recoil MCM tab, not here -- see
+	// SimulationImpulseSettings::recoil_decomp_* for the rationale). Only fires on InsurgencyRecoil
+	// weapons, on the same viewmodel-only impulse channel as everything else above.
+	BODYCAM_FLOAT(vm_recoil_decomp_impulse, impulse.recoil_decomp_impulse, 0.f, 30.f),
+	BODYCAM_FLOAT(vm_recoil_decomp_vertical_scale, impulse.recoil_decomp_vertical_scale, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_decomp_forward_scale, impulse.recoil_decomp_forward_scale, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_decomp_pitch_scale, impulse.recoil_decomp_pitch_scale, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_decomp_horizontal_scale, impulse.recoil_decomp_horizontal_scale, 0.f, 3.f),
+	BODYCAM_FLOAT(vm_recoil_decomp_ads_scale, impulse.recoil_decomp_ads_scale, 0.f, 1.f),
+
 	BODYCAM_FLOAT(impulse_decay_speed, impulse.decay, 0.1f, 60.f),
 	BODYCAM_FLOAT(impulse_max_position_offset, impulse.impulse_pos_cap, 0.f, 0.5f),
 	BODYCAM_FLOAT(impulse_max_rotation_offset, impulse.impulse_rot_cap, 0.f, 45.f),
@@ -158,6 +182,24 @@ static FloatBinding g_float_bindings[] = {
 	BODYCAM_FLOAT(vm_spring_layer_weight, features.layer_vm_weight, 0.f, 1.f),
 	BODYCAM_FLOAT(vm_lowering_layer_weight, features.layer_lower_weight, 0.f, 1.f),
 	BODYCAM_FLOAT(arm_compliance_layer_weight, features.layer_arm_weight, 0.f, 1.f),
+
+	// Idle/aim weapon sway (viewmodel-only). Per-weapon pattern (amplitude/frequency/noise) is set via
+	// bodycam_sway_* .ltx keys on each weapon, not here -- these are the shared, global feel multipliers.
+	BODYCAM_FLOAT(sway_amplitude_pos_scale, sway.amplitude_pos_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_amplitude_rot_scale, sway.amplitude_rot_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_ads_scale, sway.ads_mult, 0.f, 1.f),
+	BODYCAM_FLOAT(sway_speed_scale, sway.speed_scale, 0.1f, 2.f),
+	BODYCAM_FLOAT(sway_weight_scale, sway.weight_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_ergonomics_scale, sway.ergonomics_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_fatigue_scale, sway.fatigue_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_injury_scale, sway.injury_mult, 0.f, 5.f),
+	BODYCAM_FLOAT(sway_sprint_recovery_scale, sway.sprint_recovery_mult, 0.f, 3.f),
+	BODYCAM_FLOAT(sway_sprint_recovery_duration, sway.sprint_recovery_duration, 0.f, 15.f),
+	BODYCAM_FLOAT(sway_hold_breath_scale, sway.hold_breath_mult, 0.f, 1.f),
+	BODYCAM_FLOAT(sway_hold_breath_max_time, sway.hold_breath_max_time, 1.f, 30.f),
+	BODYCAM_FLOAT(sway_hold_breath_restore_rate, sway.hold_breath_restore_rate, 0.05f, 3.f),
+	BODYCAM_FLOAT(sway_hold_breath_release_penalty, sway.hold_breath_release_penalty_mult, 1.f, 3.f),
+	BODYCAM_FLOAT(sway_hold_breath_threshold, sway.hold_breath_threshold, 0.f, 10.f),
 };
 
 static BoolBinding g_bool_bindings[] = {
@@ -172,6 +214,7 @@ static BoolBinding g_bool_bindings[] = {
 	BODYCAM_BOOL(movement_inertia_enable, movement.enable),
 	BODYCAM_BOOL(movement_inertia_disable_ads, movement.ads_disable),
 	BODYCAM_BOOL(vm_lowering_disable_in_combat, features.lower_disable_in_combat),
+	BODYCAM_BOOL(sway_enable, features.sway_enable),
 	BODYCAM_BOOL(impulse_debug_enable, features.impulse_debug),
 };
 
@@ -452,6 +495,37 @@ float GetLayerWeight(LPCSTR layer)
 	return 0.f;
 }
 
+// Live per-frame input (is the player currently holding the hold-breath key), not a tunable setting --
+// deliberately kept out of RuntimeConfig/the named binding tables above, which are for persisted MCM
+// values. Set from Lua (bodycam.set_hold_breath, gamedata script polling its own kCUSTOM key bind via
+// the native on_key_hold/on_key_release callbacks) and read once per frame in ActorCameras.cpp.
+static bool g_bodycam_hold_breath_held = false;
+
+void SetHoldBreathHeld(bool held)
+{
+	g_bodycam_hold_breath_held = held;
+}
+
+bool IsHoldBreathHeld()
+{
+	return g_bodycam_hold_breath_held;
+}
+
+// Same idea as hold-breath above: live per-frame input (how badly hurt the actor's arms currently are),
+// pushed from a script polling the Body Health System's health.leftarm/rightarm globals (no change-event
+// exists for those). Kept out of RuntimeConfig for the same reason.
+static float g_bodycam_arm_injury_severity = 0.f;
+
+void SetArmInjurySeverity(float severity)
+{
+	g_bodycam_arm_injury_severity = clampr(severity, 0.f, 1.f);
+}
+
+float GetArmInjurySeverity()
+{
+	return g_bodycam_arm_injury_severity;
+}
+
 SimulationSettings GetSimulationSettings()
 {
 	SimulationSettings settings;
@@ -471,6 +545,8 @@ SimulationSettings GetSimulationSettings()
 	settings.lowering = g_bodycam_config.lowering;
 	settings.bodycam_arm = g_bodycam_config.bodycam_arm;
 	settings.stalker2_arm = g_bodycam_config.stalker2_arm;
+	settings.sway = g_bodycam_config.sway;
+	settings.sway.enable = !!g_bodycam_config.features.sway_enable;
 	settings.features.layer_vm_weight = g_bodycam_config.features.layer_vm_weight;
 	settings.features.layer_lower_weight = g_bodycam_config.features.layer_lower_weight;
 	settings.features.layer_arm_weight = g_bodycam_config.features.layer_arm_weight;

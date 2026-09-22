@@ -115,6 +115,37 @@ bool CActor::cam_BodycamVisualUpdate(const CCameraBase* camera, float dt, float 
 	input.combat = m_sndShockEffector && m_sndShockEffector->InWork();
 	input.firearm_equipped = HasActiveFirearm(*this);
 	input.actor_speed_fraction = m_bodycam_movement_response.speed_fraction;
+	input.hold_breath_active = Bodycam::IsHoldBreathHeld();
+	input.arm_injury_severity = Bodycam::GetArmInjurySeverity();
+
+	CCameraShotEffector* recoil_effector = smart_cast<CCameraShotEffector*>(Cameras().GetCamEffector(eCEShot));
+	if (recoil_effector && recoil_effector->IsInsurgencyRecoil())
+	{
+		// GetOutputVert/Horz are in radians (CameraRecoil's cam_dispersion/cam_max_angle etc are
+		// converted from the .ltx's degree-style numbers to radians at load time, since they feed
+		// the camera's own radian pitch/yaw directly via ChangeHP). Convert to degrees here so
+		// recoil_pos_scale/recoil_rot_scale operate on the same "degree-like" range as cam_max_angle
+		// and the rest of the viewmodel sway system (vm_mouse_rot etc) -- matches this project's own
+		// documentation/defaults, which assumed degrees.
+		input.recoil_pitch = Bodycam::RadToDeg(recoil_effector->GetOutputVert());
+		input.recoil_yaw = Bodycam::RadToDeg(recoil_effector->GetOutputHorz());
+		input.muzzle_pivot = recoil_effector->GetMuzzlePivot();
+		input.yaw_center_pull = recoil_effector->GetYawCenterPull();
+	}
+
+	// Idle/aim weapon sway pattern (bodycam_sway_* .ltx keys) -- independent of insurgency_recoil, so
+	// read directly from the active weapon rather than gated behind the recoil effector above.
+	if (CWeapon* sway_weapon = ActiveBodycamWeapon(*this))
+	{
+		input.sway_enabled = sway_weapon->m_bodycamSwayEnable;
+		input.sway_amplitude_pos = sway_weapon->m_bodycamSwayAmplitudePos;
+		input.sway_amplitude_rot = sway_weapon->m_bodycamSwayAmplitudeRot;
+		input.sway_freq_primary = sway_weapon->m_bodycamSwayFreqPrimary;
+		input.sway_freq_secondary = sway_weapon->m_bodycamSwayFreqSecondary;
+		input.sway_mix_secondary = sway_weapon->m_bodycamSwayMixSecondary;
+		input.sway_noise_amplitude = sway_weapon->m_bodycamSwayNoiseAmplitude;
+		input.sway_noise_rate = sway_weapon->m_bodycamSwayNoiseRate;
+	}
 
 	Bodycam::VisualOutput output;
 	m_bodycam.Update(input, output);
@@ -157,6 +188,12 @@ void CActor::cam_BodycamAddImpulse(LPCSTR kind, float power)
 {
 	if (this == Level().CurrentEntity())
 		m_bodycam.AddImpulse(kind, power, GetBodycamAdsState(*this).active);
+}
+
+void CActor::cam_BodycamAddRecoilDecompImpulse(float power, const Bodycam::RecoilDecompOverride& overrides)
+{
+	if (this == Level().CurrentEntity())
+		m_bodycam.AddRecoilDecompImpulse(power, GetBodycamAdsState(*this).active, overrides);
 }
 
 void CActor::cam_BodycamSetViewmodelProfile(const Fvector& pos, const Fvector& rot, float blend_speed)

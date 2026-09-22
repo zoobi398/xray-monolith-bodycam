@@ -1,0 +1,33 @@
+-- Arm injury -> sway coupling (18/09 follow-up): polls the Body Health System's global arm-health state
+-- (health.leftarm/health.rightarm, maintained by zzz_player_injuries.script -- there's no change-event
+-- for those, so this polls once a tick rather than hooking a callback) and pushes a 0..1 severity
+-- (0 = both arms at full health, 1 = an arm fully broken) into the native sway engine, which amplifies
+-- sway amplitude by up to Sway Injury Influence (Bodycam Weapon Sway MCM tab) as arms get hurt.
+-- Viewmodel-only, replaces the shake ZZZ Patch's shaking_hands()/NEW_LIMB_PENALTIES_FEATURE would add via
+-- a real camera effector -- independent of whether that feature is left on or off.
+
+local last_severity = -1
+
+local function actor_on_update()
+	if not (bodycam and bodycam.set_arm_injury) then
+		return
+	end
+	if not (type(health) == "table" and type(maxhp) == "table") then
+		return -- Body Health System not installed/loaded
+	end
+
+	local left_max = maxhp.leftarm or 5
+	local right_max = maxhp.rightarm or 5
+	local left_severity = (left_max > 0) and (1 - clamp((health.leftarm or left_max) / left_max, 0, 1)) or 0
+	local right_severity = (right_max > 0) and (1 - clamp((health.rightarm or right_max) / right_max, 0, 1)) or 0
+	local severity = math.max(left_severity, right_severity)
+
+	if severity ~= last_severity then
+		last_severity = severity
+		bodycam.set_arm_injury(severity)
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_update", actor_on_update)
+end

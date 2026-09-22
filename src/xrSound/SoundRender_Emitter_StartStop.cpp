@@ -32,6 +32,15 @@ void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 	}
 	bStopping = FALSE;
 	bRewind = FALSE;
+
+	// Reset fade config to defaults on every (re)start -- covers pooled/reused emitters.
+	// A script that wants a custom fade must call set_fade_out/set_fade_in after play().
+	fade_out_duration_s = 0.1f;
+	fade_in_duration_s = 0.f;
+	fade_out_curve = 0;
+	fade_in_curve = 0;
+	fade_out_elapsed = 0.f;
+	fade_in_elapsed = 0.f;
 }
 
 void CSoundRender_Emitter::i_stop()
@@ -50,8 +59,31 @@ void CSoundRender_Emitter::i_stop()
 
 void CSoundRender_Emitter::stop(BOOL bDeffered)
 {
-	if (bDeffered) bStopping = TRUE;
+	if (bDeffered)
+	{
+		bStopping = TRUE;
+		fade_out_elapsed = 0.f;
+	}
 	else i_stop();
+}
+
+void CSoundRender_Emitter::set_fade_out(float duration_s, int curve)
+{
+	fade_out_duration_s = (duration_s > 0.f) ? duration_s : 0.1f;
+	fade_out_curve = curve;
+}
+
+void CSoundRender_Emitter::set_fade_in(float duration_s, int curve)
+{
+	fade_in_duration_s = (duration_s > 0.f) ? duration_s : 0.f;
+	fade_in_curve = curve;
+	if (fade_in_duration_s > 0.f)
+	{
+		// Force silence now; update_culling() will ramp fade_volume back up
+		// to 1.0 over fade_in_duration_s on subsequent frames.
+		fade_in_elapsed = 0.f;
+		fade_volume = 0.f;
+	}
 }
 
 void CSoundRender_Emitter::rewind()

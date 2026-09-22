@@ -182,6 +182,10 @@ protected:
 	xr_vector<s8> m_aFireModes;
 	int m_iCurFireMode;
 	int m_iPrefferedFireMode;
+	// Insurgency-style shot-progression animation tiers (opt-in, insurgency_shot_anim_sustain in .ltx):
+	// shot 1 of a trigger pull plays anm_shots/anm_shots_aim, shot 2 plays its _second tier, shot 3
+	// _third, shot 4+ plateaus on _fourth -- every shot still retriggers normally. See PlayAnimShoot().
+	bool m_insurgencyShotAnimSustain;
 
 	//переменная блокирует использование
 	//только разных типов патронов

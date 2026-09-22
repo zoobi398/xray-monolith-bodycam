@@ -94,6 +94,18 @@ IC void CScriptSound::StopDeffered()
 	m_sound.stop_deffered();
 }
 
+// Single-arg convenience overloads default to the equal-power curve (1) --
+// smoother-sounding than linear for loop<->end style crossfades.
+IC void CScriptSound::SetFadeOut(float duration_s)
+{
+	SetFadeOut(duration_s, 1);
+}
+
+IC void CScriptSound::SetFadeIn(float duration_s)
+{
+	SetFadeIn(duration_s, 1);
+}
+
 IC void CScriptSound::SetPosition(const Fvector& position)
 {
 	VERIFY(m_sound._handle());

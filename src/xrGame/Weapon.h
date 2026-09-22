@@ -1120,6 +1120,29 @@ public:
 	bool m_altAimPos;
 	u8 m_zoomtype;
 
+	// Insurgency-style recoil: opt-in per weapon (insurgency_alt_aim_lean in .ltx). When set and this
+	// weapon is actually in alt-aim (GetZoomType()==1), on_weapon_shot_start() feeds a fixed 45-degree
+	// left-lean angle into the shot effector instead of the actor's real Orientation().roll, so
+	// zoom_insurgency_lean_coupling (already tuned for real leaning) applies automatically -- simulating
+	// the visible tilt of a canted/offset sight without modelling its actual geometry. Deliberately not
+	// combined with simultaneous real leaning or the alt-aim's true tilt angle (which varies per sight,
+	// unlike the fixed real-lean angle) to keep this simple; if a given weapon's alt-aim tilts the other
+	// way, flip the sign of zoom_insurgency_lean_coupling for that weapon instead of adding more state here.
+	bool m_altAimLeanCoupling = false;
+	IC bool UseAltAimLeanCoupling() const { return m_altAimLeanCoupling; }
+
+	// Bodycam idle/aim weapon sway pattern, opt-in per weapon (bodycam_sway_* in .ltx). Viewmodel-only
+	// (see bodycam_simulation.cpp's sway block) -- never touches the real camera/aim, unlike the
+	// separate Lua weapon_sway.script/shaking_hands() systems. Independent of insurgency_recoil.
+	bool m_bodycamSwayEnable = false;
+	float m_bodycamSwayAmplitudePos = 0.f;
+	float m_bodycamSwayAmplitudeRot = 0.f;
+	float m_bodycamSwayFreqPrimary = 0.4f;
+	float m_bodycamSwayFreqSecondary = 1.1f;
+	float m_bodycamSwayMixSecondary = 0.35f;
+	float m_bodycamSwayNoiseAmplitude = 0.f;
+	float m_bodycamSwayNoiseRate = 0.6f;
+
 	CWeaponAmmo* m_pCurrentAmmo;
 	u8 m_ammoType;
 	bool m_bHasTracers;

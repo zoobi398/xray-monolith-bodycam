@@ -1,0 +1,9 @@
+-- Override (19/09): neutralizes G.A.M.M.A. Keybinds fixes' own Free_ZoomV2.script, which hardcodes
+-- DIK 341 (Mouse5) as a free-zoom key with zero MCM check of any kind (not even the "3D Shader Scopes
+-- for GAMMA 5.0 Beta 2" free-zoom feature it happens to share a filename/purpose with) -- so the only way
+-- to actually free that key was to override the file itself, at higher MO2 priority. This mod only ships
+-- this one file's worth of fix; everything else G.A.M.M.A. Keybinds fixes provides (NVG scopes, clear
+-- jam, etc, in its own separate files) is untouched. on_game_start intentionally registers nothing.
+
+function on_game_start()
+end

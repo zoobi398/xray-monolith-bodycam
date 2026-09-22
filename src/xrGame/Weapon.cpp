@@ -862,6 +862,33 @@ void CWeapon::Load(LPCSTR section)
 
 	cam_recoil.DispersionFrac = _abs(READ_IF_EXISTS(pSettings, r_float, section, "cam_dispersion_frac", 0.7f));
 
+	// Insurgency-style recoil, opt-in per weapon (see EffectorShot.cpp CWeaponShotEffector::Shot2).
+	// Absent for every existing weapon -> all three default to "off" and the stock path is untouched.
+	cam_recoil.InsurgencyRecoil = !!READ_IF_EXISTS(pSettings, r_bool, section, "insurgency_recoil", FALSE);
+	cam_recoil.YawRho = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_yaw_rho", 0.0f);
+	cam_recoil.LeanCoupling = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_lean_coupling", 0.0f);
+	cam_recoil.RiseTimeMs = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_rise_time_ms", 0.0f);
+	cam_recoil.MuzzlePivot = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_muzzle_pivot", 0.0f);
+	cam_recoil.YawCenterPull = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_yaw_center_pull", 0.0f);
+	cam_recoil.DecompScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_scale", 1.0f);
+	cam_recoil.DecompMinShots = READ_IF_EXISTS(pSettings, r_s32, section, "insurgency_decomp_min_shots", 4);
+	cam_recoil.DecompImpulse = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_impulse", -1.0f);
+	cam_recoil.DecompVerticalScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_vertical_scale", -1.0f);
+	cam_recoil.DecompForwardScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_forward_scale", -1.0f);
+	cam_recoil.DecompPitchScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_pitch_scale", -1.0f);
+	cam_recoil.DecompHorizontalScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_horizontal_scale", -1.0f);
+	cam_recoil.DecompAdsScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_ads_scale", -1.0f);
+	m_altAimLeanCoupling = !!READ_IF_EXISTS(pSettings, r_bool, section, "insurgency_alt_aim_lean", FALSE);
+
+	m_bodycamSwayEnable = !!READ_IF_EXISTS(pSettings, r_bool, section, "bodycam_sway_enable", FALSE);
+	m_bodycamSwayAmplitudePos = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_amplitude_pos", 0.0f);
+	m_bodycamSwayAmplitudeRot = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_amplitude_rot", 0.0f);
+	m_bodycamSwayFreqPrimary = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_freq_primary", 0.4f);
+	m_bodycamSwayFreqSecondary = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_freq_secondary", 1.1f);
+	m_bodycamSwayMixSecondary = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_mix_secondary", 0.35f);
+	m_bodycamSwayNoiseAmplitude = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_noise_amplitude", 0.0f);
+	m_bodycamSwayNoiseRate = READ_IF_EXISTS(pSettings, r_float, section, "bodycam_sway_noise_rate", 0.6f);
+
 	//ïîäáðàñûâàíèå êàìåðû âî âðåìÿ îòäà÷è â ðåæèìå zoom ==> ironsight or scope
 	//zoom_cam_recoil.Clone( cam_recoil ); ==== íåëüçÿ !!!!!!!!!!
 	zoom_cam_recoil.RelaxSpeed = cam_recoil.RelaxSpeed;
@@ -873,6 +900,21 @@ void CWeapon::Load(LPCSTR section)
 
 	zoom_cam_recoil.ReturnMode = cam_recoil.ReturnMode;
 	zoom_cam_recoil.StopReturn = cam_recoil.StopReturn;
+
+	zoom_cam_recoil.InsurgencyRecoil = cam_recoil.InsurgencyRecoil;
+	zoom_cam_recoil.YawRho = cam_recoil.YawRho;
+	zoom_cam_recoil.LeanCoupling = cam_recoil.LeanCoupling;
+	zoom_cam_recoil.RiseTimeMs = cam_recoil.RiseTimeMs;
+	zoom_cam_recoil.MuzzlePivot = cam_recoil.MuzzlePivot;
+	zoom_cam_recoil.YawCenterPull = cam_recoil.YawCenterPull;
+	zoom_cam_recoil.DecompScale = cam_recoil.DecompScale;
+	zoom_cam_recoil.DecompMinShots = cam_recoil.DecompMinShots;
+	zoom_cam_recoil.DecompImpulse = cam_recoil.DecompImpulse;
+	zoom_cam_recoil.DecompVerticalScale = cam_recoil.DecompVerticalScale;
+	zoom_cam_recoil.DecompForwardScale = cam_recoil.DecompForwardScale;
+	zoom_cam_recoil.DecompPitchScale = cam_recoil.DecompPitchScale;
+	zoom_cam_recoil.DecompHorizontalScale = cam_recoil.DecompHorizontalScale;
+	zoom_cam_recoil.DecompAdsScale = cam_recoil.DecompAdsScale;
 
 	if (pSettings->line_exist(section, "zoom_cam_relax_speed"))
 	{
@@ -917,6 +959,30 @@ void CWeapon::Load(LPCSTR section)
 	if (pSettings->line_exist(section, "zoom_cam_dispersion_frac"))
 	{
 		zoom_cam_recoil.DispersionFrac = _abs(pSettings->r_float(section, "zoom_cam_dispersion_frac"));
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_yaw_rho"))
+	{
+		zoom_cam_recoil.YawRho = pSettings->r_float(section, "zoom_insurgency_yaw_rho");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_lean_coupling"))
+	{
+		zoom_cam_recoil.LeanCoupling = pSettings->r_float(section, "zoom_insurgency_lean_coupling");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_rise_time_ms"))
+	{
+		zoom_cam_recoil.RiseTimeMs = pSettings->r_float(section, "zoom_insurgency_rise_time_ms");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_muzzle_pivot"))
+	{
+		zoom_cam_recoil.MuzzlePivot = pSettings->r_float(section, "zoom_insurgency_muzzle_pivot");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_yaw_center_pull"))
+	{
+		zoom_cam_recoil.YawCenterPull = pSettings->r_float(section, "zoom_insurgency_yaw_center_pull");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_decomp_scale"))
+	{
+		zoom_cam_recoil.DecompScale = pSettings->r_float(section, "zoom_insurgency_decomp_scale");
 	}
 
 	m_pdm.m_fPDM_disp_base = pSettings->r_float(section, "PDM_disp_base");

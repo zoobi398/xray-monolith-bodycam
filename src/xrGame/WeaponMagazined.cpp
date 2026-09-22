@@ -179,6 +179,8 @@ void CWeaponMagazined::Load(LPCSTR section)
 	m_fBaseDispersionedBulletsSpeed = READ_IF_EXISTS(pSettings, r_float, section, "base_dispersioned_bullets_speed",
 	                                                 m_fStartBulletSpeed);
 
+	m_insurgencyShotAnimSustain = !!READ_IF_EXISTS(pSettings, r_bool, section, "insurgency_shot_anim_sustain", FALSE);
+
 	if (pSettings->line_exist(section, "fire_modes"))
 	{
 		m_bHasDifferentFireModes = true;
@@ -1749,14 +1751,44 @@ void CWeaponMagazined::PlayAnimIdle()
 void CWeaponMagazined::PlayAnimShoot()
 {
 	VERIFY(GetState() == eFire);
+
 	if (iAmmoElapsed > 1 || !HudAnimationExist("anm_shot_l"))
 	{
-		if(!IsZoomed() || !HudAnimationExist("anm_shots_aim"))
-			PlayHUDMotion("anm_shots", TRUE, this, GetState(), 1.f, 0.f, false);
-		else
-			PlayHUDMotion("anm_shots_aim", TRUE, this, GetState(), 1.f, 0.f, false);
+		bool use_aim = IsZoomed() && HudAnimationExist("anm_shots_aim");
+		shared_str anm_name = use_aim ? "anm_shots_aim" : "anm_shots";
+
+		// Insurgency-style shot-progression animation tiers (opt-in): stock behaviour restarts
+		// anm_shots/anm_shots_aim from frame 0 on every single shot, always the SAME clip family --
+		// PlayHUDMotion's bMixIn2=false below makes that an instant, unblended cut (LL_CloseCycle +
+		// IBlendSetup with blendAmount=1 straight away, SkeletonAnimated.cpp), never a fade. At full-auto
+		// cadences faster than the clip's own length (e.g. UZI's ~1s anm_shots_aim vs 100ms between shots
+		// at 600rpm) that means only the opening ~3 frames are ever seen, repeated with a hard pop, and
+		// the clip's own settle/decompensation tail never plays. With this on, every shot still retriggers
+		// exactly like stock (same hard-cut cadence, no freeze/desync risk -- each shot re-anchors to the
+		// real fire event, nothing can drift), but WHICH clip family plays depends on m_iShotNum: shot 1
+		// uses anm_shots(_aim) as normal, shot 2 uses its _second tier, shot 3 _third, shot 4+ plateaus on
+		// _fourth. Each tier is itself authored as frames 0-2 pulled progressively closer to frame 3's
+		// pose (the point where the next shot's hard-cut actually lands at this RPM), frame 3 onward left
+		// untouched -- so consecutive hard-cuts land on increasingly similar poses instead of popping back
+		// to a fully "unrecoiled" frame 0 every time. The per-weapon anm_shots_variant1/2/3-style random
+		// cosmetic pick still applies within whichever tier is selected (unchanged, handled automatically
+		// by the engine's own base_name+1..8 motion discovery -- see player_hud_motion_container::load()).
+		// The settle/decompensation tail then plays for free, unedited, on whichever tier is active the
+		// moment nothing retriggers it (trigger release, jam, empty mag) -- same original frames 3-34
+		// regardless of tier, so it's authentic no matter where the burst happened to end.
+		if (m_insurgencyShotAnimSustain && m_iShotNum > 1)
+		{
+			LPCSTR tier = (m_iShotNum == 2) ? "_second" : (m_iShotNum == 3) ? "_third" : "_fourth";
+
+			string128 tier_name;
+			xr_sprintf(tier_name, "%s%s", anm_name.c_str(), tier);
+			if (HudAnimationExist(tier_name))
+				anm_name = tier_name;
+		}
+
+		PlayHUDMotion(anm_name, TRUE, this, GetState(), 1.f, 0.f, false);
 	}
-	else 
+	else
 	{
 		if (!IsZoomed() || !HudAnimationExist("anm_shots_aim_l"))
 			PlayHUDMotion("anm_shot_l", TRUE, this, GetState(), 1.f, 0.f, false);

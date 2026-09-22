@@ -23,6 +23,21 @@ struct UpdateInput
 	bool combat = false;
 	bool firearm_equipped = true;
 	float actor_speed_fraction = 0.f;
+	float recoil_pitch = 0.f;
+	float recoil_yaw = 0.f;
+	float muzzle_pivot = 0.f;
+	float yaw_center_pull = 0.f;
+
+	bool sway_enabled = false;
+	float sway_amplitude_pos = 0.f;
+	float sway_amplitude_rot = 0.f;
+	float sway_freq_primary = 0.f;
+	float sway_freq_secondary = 0.f;
+	float sway_mix_secondary = 0.f;
+	float sway_noise_amplitude = 0.f;
+	float sway_noise_rate = 0.f;
+	bool hold_breath_active = false;
+	float arm_injury_severity = 0.f;
 };
 
 struct VisualOutput
@@ -95,6 +110,7 @@ public:
 	PipView UpdatePipView(const PipInput& input);
 	void AddFireImpulse(float power, bool ads);
 	void AddImpulse(LPCSTR kind, float power, bool ads);
+	void AddRecoilDecompImpulse(float power, bool ads, const RecoilDecompOverride& overrides);
 	void SetViewmodelProfile(const Fvector& pos, const Fvector& rot, float blend_speed);
 	void ClearViewmodelProfile(float blend_speed);
 	void Dump(bool ads, u32 mstate) const;
@@ -110,6 +126,8 @@ private:
 	BOOL m_viewmodel_active = FALSE;
 	Fvector m_viewmodel_pos = { 0.f, 0.f, 0.f };
 	Fvector m_viewmodel_rot = { 0.f, 0.f, 0.f };
+	float m_last_recoil_pitch = 0.f;
+	float m_last_recoil_yaw = 0.f;
 	ArmPose m_arm_pose;
 	float m_movement_target_speed = 0.f;
 	float m_movement_actual_speed = 0.f;

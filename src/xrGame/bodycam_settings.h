@@ -15,6 +15,7 @@ struct RuntimeFeatureSettings
 	BOOL sprint_transition_enable = TRUE;
 	BOOL impulse_debug = FALSE;
 	BOOL lower_disable_in_combat = TRUE;
+	BOOL sway_enable = TRUE;
 	float layer_vm_weight = 1.f;
 	float layer_lower_weight = 1.f;
 	float layer_arm_weight = 1.f;
@@ -42,6 +43,7 @@ struct RuntimeConfig
 	SimulationLoweringSettings lowering;
 	SimulationArmSettings bodycam_arm;
 	SimulationStalker2ArmSettings stalker2_arm;
+	SimulationSwaySettings sway;
 };
 
 struct FloatBinding
@@ -76,5 +78,9 @@ bool GetBool(LPCSTR name, bool& value);
 bool SetBool(LPCSTR name, bool value);
 void SetLayerWeight(LPCSTR layer, float weight);
 float GetLayerWeight(LPCSTR layer);
+void SetHoldBreathHeld(bool held);
+bool IsHoldBreathHeld();
+void SetArmInjurySeverity(float severity);
+float GetArmInjurySeverity();
 SimulationSettings GetSimulationSettings();
 } // namespace Bodycam

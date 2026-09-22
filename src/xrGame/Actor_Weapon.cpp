@@ -295,8 +295,21 @@ void CActor::on_weapon_shot_start(CWeapon* weapon)
 
 	effector->SetRndSeed(GetShotRndSeed());
 	effector->SetActor(this);
-	effector->Shot(weapon);
-	cam_BodycamAddFireImpulse(1.f);
+	// Alt-aim (canted/offset sight) lean-coupling simulation: if this weapon opts in and is actually in
+	// its alt-aim zoom right now, feed a fixed 45-degree left-lean angle instead of the real
+	// Orientation().roll, so zoom_insurgency_lean_coupling biases the recoil the same way a real lean
+	// would -- approximating the visible tilt of the weapon without modelling the actual sight geometry.
+	float shot_actor_roll = (camera_recoil.InsurgencyRecoil && weapon->UseAltAimLeanCoupling() && weapon->GetZoomType() == 1)
+		? -PI_DIV_4
+		: Orientation().roll;
+	effector->Shot(weapon, shot_actor_roll);
+
+	// Stock weapons keep the original fixed-magnitude cosmetic kick (byte-identical to before).
+	// Insurgency-recoil weapons instead scale it to the actual vertical kick this shot just applied,
+	// so the viewmodel's cosmetic motion (Bodycam) tracks the real per-shot variability (DispersionFrac
+	// scatter, lean bias) instead of pulsing the same fixed amount every time.
+	float impulse_power = camera_recoil.InsurgencyRecoil ? effector->GetLastShotImpulse() : 1.f;
+	cam_BodycamAddFireImpulse(impulse_power);
 }
 
 void CActor::on_weapon_shot_update()
@@ -318,6 +331,32 @@ void CActor::on_weapon_shot_stop()
 	CCameraShotEffector* effector = smart_cast<CCameraShotEffector*>(Cameras().GetCamEffector(eCEShot));
 	if (effector && effector->IsActive())
 	{
+		// Insurgency-style recoil decompensation kick (viewmodel-only, opt-in per weapon via
+		// insurgency_recoil): fires exactly once, right as a sustained burst genuinely ends (this is the
+		// same event StopShoting()/m_shot_end below is about to trigger, gated the same way by
+		// IsActive() -- only real, currently-accumulated recoil). Scaled to the LAST shot's own kick
+		// (GetLastShotImpulse(), the same value the per-shot fire impulse already uses), not the burst's
+		// accumulated total -- see SimulationImpulseSettings::recoil_decomp_* for why.
+		// Also gated on GetShotNumber() (0-based) +1, i.e. the actual number of shots fired in the burst
+		// that just ended, against DecompMinShots (insurgency_decomp_min_shots, default 4): a single shot
+		// or a short semi-auto tap never built up any sustained climb worth "releasing", so it shouldn't
+		// decompensate at all -- only once the burst has actually reached the same plateau the shot-anim
+		// tier system (anm_shots_fourth) reaches.
+		if (effector->IsInsurgencyRecoil() && effector->GetShotNumber() + 1 >= effector->GetDecompMinShots())
+		{
+			// Per-weapon insurgency_decomp_impulse/_vertical_scale/_forward_scale/_pitch_scale/
+			// _horizontal_scale/_ads_scale .ltx overrides (22/09) -- each -1 (unset) falls back to the
+			// global Bodycam Weapon Recoil MCM slider inside AddRecoilDecompImpulse itself.
+			Bodycam::RecoilDecompOverride decomp_overrides;
+			decomp_overrides.impulse = effector->GetDecompImpulse();
+			decomp_overrides.vertical_scale = effector->GetDecompVerticalScale();
+			decomp_overrides.forward_scale = effector->GetDecompForwardScale();
+			decomp_overrides.pitch_scale = effector->GetDecompPitchScale();
+			decomp_overrides.horizontal_scale = effector->GetDecompHorizontalScale();
+			decomp_overrides.ads_scale = effector->GetDecompAdsScale();
+			cam_BodycamAddRecoilDecompImpulse(effector->GetLastShotImpulse() * effector->GetDecompScale(), decomp_overrides);
+		}
+
 		effector->StopShoting();
 	}
 }

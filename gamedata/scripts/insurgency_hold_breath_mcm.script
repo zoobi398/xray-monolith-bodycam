@@ -1,0 +1,60 @@
+-- Standalone ui_mcm page (19/09 follow-up) just for a real, click-to-bind hold-breath key. The native
+-- "Modded EXEs" framework used by the Bodycam Weapon Sway tab has no live key-capture widget -- key_bind
+-- is a ui_mcm-addon-only feature, and per that addon's own docs curr/functor overrides aren't supported
+-- for it either, so this can't be folded into the existing tab; it needs its own small page here. Depth/
+-- timing/penalty tuning stays in Bodycam Weapon Sway -- only the key/modifier/mode picker lives here.
+-- insurgency_hold_breath.script reads these three back via ui_mcm.get(...).
+
+local ROOT = "insurgency_hold_breath"
+
+function on_mcm_load()
+	return {
+		id = ROOT,
+		sh = true,
+		gr = {
+			{
+				id = "title",
+				type = "slide",
+				link = "ui_options_slider_player",
+				text = "Insurgency Hold Breath",
+				no_str = true,
+				size = { 512, 50 },
+				spacing = 20,
+			},
+			{
+				id = "hold_breath_key",
+				type = "key_bind",
+				val = 2,
+				def = DIK_keys.DIK_F,
+				text = "Hold Breath Key",
+				no_str = true,
+			},
+			{
+				id = "hold_breath_modifier",
+				type = "list",
+				val = 0,
+				def = "none",
+				text = "Hold Breath Modifier",
+				no_str = true,
+				content = { { "none", "None" }, { "ctrl", "Ctrl" }, { "alt", "Alt" }, { "shift", "Shift" } },
+			},
+			{
+				id = "hold_breath_mode",
+				type = "list",
+				val = 0,
+				def = "hold",
+				text = "Hold Breath Mode",
+				no_str = true,
+				content = { { "hold", "Hold" }, { "toggle", "Toggle" } },
+			},
+			{
+				id = "enable_breath_sound",
+				type = "check",
+				val = 1,
+				def = true,
+				text = "Enable Breath Sound",
+				no_str = true,
+			},
+		},
+	}
+end

@@ -360,6 +360,7 @@ public:
 	IC CCameraBase* cam_Active() { return cameras[cam_active]; }
 	void cam_BodycamDumpState();
 	void cam_BodycamAddImpulse(LPCSTR kind, float power);
+	void cam_BodycamAddRecoilDecompImpulse(float power, const Bodycam::RecoilDecompOverride& overrides);
 	void cam_BodycamSetViewmodelProfile(const Fvector& pos, const Fvector& rot, float blend_speed);
 	void cam_BodycamClearViewmodelProfile(float blend_speed);
 	bool cam_BodycamGetHudOffset(Fvector& pos, Fvector& rot) const;

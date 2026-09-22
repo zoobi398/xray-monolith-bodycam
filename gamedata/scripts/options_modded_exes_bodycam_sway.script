@@ -1,0 +1,63 @@
+--- Bodycam idle/aim weapon sway options tree for modded EXE builds.
+--- Separate page from Bodycam Weapon Recoil: this is a general, viewmodel-only sway system (not tied
+--- to insurgency_recoil), added 18/09. Per-weapon pattern (amplitude/frequency/noise) is set via
+--- bodycam_sway_* keys in that weapon's .ltx, not here -- these are the shared, global feel multipliers.
+
+options_builder.import_into(this)
+
+local bodycam_path = "gameplay/bodycam_sway"
+local bodycam_opt_prefix = "modded_exes/" .. bodycam_path .. "/"
+
+local function get_num(key, def)
+    if bodycam and bodycam.get_float then
+        return bodycam.get_float(key, def or 0)
+    end
+    return def or 0
+end
+
+local function set_num(key, id)
+    local value = ui_options.opt_temp[bodycam_opt_prefix .. id]
+    if value == nil or not (bodycam and bodycam.set_float) then
+        return
+    end
+    bodycam.set_float(key, tonumber(value) or 0)
+end
+
+local function bodycam_num(args)
+    args.curr = { get_num, args.key, args.def }
+    args.functor = { set_num, args.key, args.id }
+    args.prec = args.prec or 1
+    args.cmd = false
+    return track(args)
+end
+
+local function label(id)
+    return "ui_mm_modded_exes_gameplay_bodycam_sway_" .. id
+end
+
+PAGE = page {
+    { id = "bodycam_sway" },
+
+    line {},
+    list_bool { id = "bodycam_sway_enable", text = label("bodycam_sway_enable") },
+    bodycam_num { id = "sway_amplitude_pos_scale", text = label("sway_amplitude_pos_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_amplitude_pos_scale" },
+    bodycam_num { id = "sway_amplitude_rot_scale", text = label("sway_amplitude_rot_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_amplitude_rot_scale" },
+    bodycam_num { id = "sway_ads_scale", text = label("sway_ads_scale"), def = 0.35, min = 0.0, max = 1.0, step = 0.05, prec = 2, key = "sway_ads_scale" },
+    bodycam_num { id = "sway_speed_scale", text = label("sway_speed_scale"), def = 1.0, min = 0.1, max = 2.0, step = 0.05, prec = 2, key = "sway_speed_scale" },
+    line {},
+    -- Key/modifier/mode picker lives in its own ui_mcm page (real click-to-bind widget, e.g. Mouse4/5) --
+    -- see "Insurgency Hold Breath" in the MCM addon's own menu list. Only depth/timing/penalty here.
+    bodycam_num { id = "sway_hold_breath_scale", text = label("sway_hold_breath_scale"), def = 0.15, min = 0.0, max = 1.0, step = 0.05, prec = 2, key = "sway_hold_breath_scale" },
+    bodycam_num { id = "sway_hold_breath_max_time", text = label("sway_hold_breath_max_time"), def = 11.0, min = 1.0, max = 30.0, step = 0.5, prec = 1, key = "sway_hold_breath_max_time" },
+    bodycam_num { id = "sway_hold_breath_restore_rate", text = label("sway_hold_breath_restore_rate"), def = 0.5, min = 0.05, max = 3.0, step = 0.05, prec = 2, key = "sway_hold_breath_restore_rate" },
+    bodycam_num { id = "sway_hold_breath_release_penalty", text = label("sway_hold_breath_release_penalty"), def = 1.35, min = 1.0, max = 3.0, step = 0.05, prec = 2, key = "sway_hold_breath_release_penalty" },
+    bodycam_num { id = "sway_hold_breath_threshold", text = label("sway_hold_breath_threshold"), def = 2.0, min = 0.0, max = 10.0, step = 0.5, prec = 1, key = "sway_hold_breath_threshold" },
+    line {},
+    bodycam_num { id = "sway_injury_scale", text = label("sway_injury_scale"), def = 2.0, min = 0.0, max = 5.0, step = 0.1, prec = 1, key = "sway_injury_scale" },
+    line {},
+    bodycam_num { id = "sway_weight_scale", text = label("sway_weight_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_weight_scale" },
+    bodycam_num { id = "sway_ergonomics_scale", text = label("sway_ergonomics_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_ergonomics_scale" },
+    bodycam_num { id = "sway_fatigue_scale", text = label("sway_fatigue_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_fatigue_scale" },
+    bodycam_num { id = "sway_sprint_recovery_scale", text = label("sway_sprint_recovery_scale"), def = 1.0, min = 0.0, max = 3.0, step = 0.05, prec = 2, key = "sway_sprint_recovery_scale" },
+    bodycam_num { id = "sway_sprint_recovery_duration", text = label("sway_sprint_recovery_duration"), def = 3.0, min = 0.0, max = 15.0, step = 0.5, prec = 1, key = "sway_sprint_recovery_duration" },
+}

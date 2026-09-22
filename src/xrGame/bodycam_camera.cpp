@@ -165,6 +165,22 @@ void CBodycam::Update(const UpdateInput& input, VisualOutput& output)
 	sim_input.visual_aim_available = mouse_aim.available;
 	sim_input.visual_aim_yaw = mouse_aim.yaw;
 	sim_input.visual_aim_pitch = mouse_aim.pitch;
+	sim_input.recoil_pitch = input.recoil_pitch;
+	sim_input.recoil_yaw = input.recoil_yaw;
+	sim_input.muzzle_pivot = input.muzzle_pivot;
+	sim_input.yaw_center_pull = input.yaw_center_pull;
+	sim_input.sway_enabled = input.sway_enabled;
+	sim_input.sway_amplitude_pos = input.sway_amplitude_pos;
+	sim_input.sway_amplitude_rot = input.sway_amplitude_rot;
+	sim_input.sway_freq_primary = input.sway_freq_primary;
+	sim_input.sway_freq_secondary = input.sway_freq_secondary;
+	sim_input.sway_mix_secondary = input.sway_mix_secondary;
+	sim_input.sway_noise_amplitude = input.sway_noise_amplitude;
+	sim_input.sway_noise_rate = input.sway_noise_rate;
+	sim_input.hold_breath_active = input.hold_breath_active;
+	sim_input.arm_injury_severity = input.arm_injury_severity;
+	m_last_recoil_pitch = input.recoil_pitch;
+	m_last_recoil_yaw = input.recoil_yaw;
 
 	SimulationOutput sim_output;
 	UpdateSimulation(settings, m_state, sim_input, sim_output);
@@ -200,6 +216,11 @@ void CBodycam::Update(const UpdateInput& input, VisualOutput& output)
 void CBodycam::AddFireImpulse(float power, bool ads)
 {
 	Bodycam::AddFireImpulse(GetSimulationSettings(), m_state, power, ads);
+}
+
+void CBodycam::AddRecoilDecompImpulse(float power, bool ads, const RecoilDecompOverride& overrides)
+{
+	Bodycam::AddRecoilDecompImpulse(GetSimulationSettings(), m_state, power, ads, overrides);
 }
 
 void CBodycam::AddImpulse(LPCSTR kind, float power, bool ads)
@@ -253,6 +274,15 @@ void CBodycam::Dump(bool ads, u32 mstate) const
 	Msg("* bodycam mouse speed[%0.3f %0.3f] accel[%0.3f %0.3f] move[%0.3f %0.3f %0.3f]", RadToDeg(m_state.viewmodel.mouse_speed.x), RadToDeg(m_state.viewmodel.mouse_speed.y), RadToDeg(m_state.viewmodel.mouse_accel.x), RadToDeg(m_state.viewmodel.mouse_accel.y), m_state.viewmodel.move_intent.x, m_state.viewmodel.move_intent.y, m_state.viewmodel.move_intent.z);
 	Msg("* bodycam impulse pos[%0.4f %0.4f %0.4f] rot[%0.3f %0.3f %0.3f] airborne=%0.3f caps pos=%0.3f rot=%0.3f", m_state.viewmodel.impulse_pos.x, m_state.viewmodel.impulse_pos.y, m_state.viewmodel.impulse_pos.z, m_state.viewmodel.impulse_rot.x, m_state.viewmodel.impulse_rot.y, m_state.viewmodel.impulse_rot.z, m_state.viewmodel.airborne_time, config.impulse.impulse_pos_cap, config.impulse.impulse_rot_cap);
 	Msg("* bodycam viewmodel pos[%0.4f %0.4f %0.4f] rot[%0.3f %0.3f %0.3f] ads_mult mouse=%0.3f impulse=%0.3f", m_state.viewmodel.pos.x, m_state.viewmodel.pos.y, m_state.viewmodel.pos.z, m_state.viewmodel.rot.x, m_state.viewmodel.rot.y, m_state.viewmodel.rot.z, config.viewmodel.ads_mouse_mult, config.viewmodel.ads_impulse_mult);
+	Msg("* bodycam recoil-follow input pitch=%0.4f yaw=%0.4f -> pos[%0.4f %0.4f %0.4f] rot[%0.3f %0.3f %0.3f] scale pos(v/h)=%0.5f/%0.5f rot(v/h)=%0.3f/%0.3f speed(v/h)=%0.2f/%0.2f damping(v/h)=%0.2f/%0.2f ads_mult=%0.2f",
+		m_last_recoil_pitch, m_last_recoil_yaw,
+		m_state.viewmodel.recoil_pos.x, m_state.viewmodel.recoil_pos.y, m_state.viewmodel.recoil_pos.z,
+		m_state.viewmodel.recoil_rot.x, m_state.viewmodel.recoil_rot.y, m_state.viewmodel.recoil_rot.z,
+		config.viewmodel.recoil_pos_scale_vert, config.viewmodel.recoil_pos_scale_horz,
+		config.viewmodel.recoil_rot_scale_vert, config.viewmodel.recoil_rot_scale_horz,
+		config.viewmodel.recoil_follow_speed_vert, config.viewmodel.recoil_follow_speed_horz,
+		config.viewmodel.recoil_follow_damping_vert, config.viewmodel.recoil_follow_damping_horz,
+		config.viewmodel.recoil_ads_mult);
 	Msg("* bodycam weapon profile enabled=%d target_pos[%0.4f %0.4f %0.4f] target_rot[%0.3f %0.3f %0.3f] blend=%0.2f",
 		m_viewmodel_profile.enabled, m_viewmodel_profile.target_pos.x, m_viewmodel_profile.target_pos.y,
 		m_viewmodel_profile.target_pos.z, m_viewmodel_profile.target_rot.x, m_viewmodel_profile.target_rot.y,

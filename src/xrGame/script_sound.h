@@ -35,6 +35,10 @@ public:
 	IC void AttachTail(LPCSTR caSoundName);
 	IC void Stop();
 	IC void StopDeffered();
+	IC void SetFadeOut(float duration_s);
+	void SetFadeOut(float duration_s, int curve);
+	IC void SetFadeIn(float duration_s);
+	void SetFadeIn(float duration_s, int curve);
 	IC void SetPosition(const Fvector& position);
 	IC void SetFrequency(float frequency);
 	IC void SetVolume(float volume);

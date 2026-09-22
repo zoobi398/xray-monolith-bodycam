@@ -1,5 +1,6 @@
 #if !defined(BODYCAM_STANDALONE)
 #	include "stdafx.h"
+extern BOOL g_insurgency_recoil_debug_log;
 #endif
 #include "bodycam_simulation.h"
 #include <algorithm>
@@ -180,6 +181,16 @@ void UpdateArmPoseSpring(SVec3& current, SVec3& velocity, const SVec3& target, f
 		current.y += velocity.y * step_dt;
 		current.z += velocity.z * step_dt;
 	}
+}
+
+// Small self-contained PRNG for the sway noise layer (classic Borland/MSVC-rand() LCG constants, same
+// family as xrCore's CRandom -- but this file avoids depending on xrCore under BODYCAM_STANDALONE, so
+// it needs its own copy). Returns a uniform sample in [-1, 1]; state is caller-owned (SimulationState::
+// viewmodel.sway_rng) so it's deterministic per simulation instance, not global mutable state.
+float NextSwayNoiseSample(std::uint32_t& rng_state)
+{
+	rng_state = rng_state * 214013u + 2531011u;
+	return (float)((rng_state >> 16) & 0x7fffu) / 32767.f * 2.f - 1.f;
 }
 
 bool ClampVector(SVec3& value, float limit)
@@ -821,6 +832,10 @@ void ResetSimulation(SimulationState& state, float yaw, float pitch, std::uint32
 	state.viewmodel.fire_impulse_rot.Set(0.f, 0.f, 0.f);
 	state.viewmodel.fire_pos.Set(0.f, 0.f, 0.f);
 	state.viewmodel.fire_rot.Set(0.f, 0.f, 0.f);
+	state.viewmodel.recoil_pos.Set(0.f, 0.f, 0.f);
+	state.viewmodel.recoil_rot.Set(0.f, 0.f, 0.f);
+	state.viewmodel.decomp_pos.Set(0.f, 0.f, 0.f);
+	state.viewmodel.decomp_rot.Set(0.f, 0.f, 0.f);
 	ClearSprintImpulseQueue(state);
 	ResetSprint(state);
 	ResetLowering(state);
@@ -954,10 +969,16 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 			state.viewmodel.fire_impulse_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
 		output.impulse_rot_clamped |= ClampVector(
 			state.viewmodel.fire_impulse_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
+		output.impulse_pos_clamped |= ClampVector(
+			state.viewmodel.decomp_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
+		output.impulse_rot_clamped |= ClampVector(
+			state.viewmodel.decomp_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
 		const float impulse_decay = Clamp(
 			1.f - std::exp(-std::max(settings.impulse.decay, 0.01f) * Clamp(input.dt, 0.f, 0.033f)), 0.f, 1.f);
 		state.viewmodel.fire_impulse_pos.Mul(1.f - impulse_decay);
 		state.viewmodel.fire_impulse_rot.Mul(1.f - impulse_decay);
+		state.viewmodel.decomp_pos.Mul(1.f - impulse_decay);
+		state.viewmodel.decomp_rot.Mul(1.f - impulse_decay);
 	}
 
 	UpdateSprintFovPulse(settings, state, input.dt);
@@ -980,6 +1001,7 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 	float inner_gain = settings.camera.hip.inner_gain;
 	float ads_mouse_mult = 1.f;
 	float ads_impulse_mult = 1.f;
+	float recoil_ads_mult = 1.f;
 	if (state.ads_blend > kEpsilon)
 	{
 		const float ads_blend = Clamp(state.ads_blend, 0.f, 1.f);
@@ -996,6 +1018,7 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		camera_pos = Lerp(settings.camera.hip.pos, settings.camera.ads.pos, ads_blend);
 		ads_mouse_mult = Lerp(1.f, settings.viewmodel.ads_mouse_mult, ads_blend);
 		ads_impulse_mult = Lerp(1.f, settings.viewmodel.ads_impulse_mult, ads_blend);
+		recoil_ads_mult = Lerp(1.f, settings.viewmodel.recoil_ads_mult, ads_blend);
 	}
 
 	state.camera.yaw = SpringAngle(state.camera.yaw, CalcDesiredAngle(state.camera.yaw, input.target_yaw, deadzone_yaw, softzone_yaw, Clamp(inner_gain, 0.f, 1.f)), spring_freq, spring_damping, input.dt);
@@ -1084,6 +1107,172 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		ClampVector(state.viewmodel.fire_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
 		ClampVector(state.viewmodel.fire_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
 
+		// Insurgency-style recoil follow: tracks the real accumulated recoil (input.recoil_pitch/yaw),
+		// not a per-shot kick or the mouse's instantaneous throw -- so the viewmodel keeps climbing
+		// alongside the camera through a sustained burst and settles back down with it afterwards,
+		// instead of snapping back to baseline between shots. Zero for non-InsurgencyRecoil weapons.
+		// Scaled by its own recoil_ads_mult (default 0), NOT ads_impulse_mult: on Insurgency, ADS recoil
+		// is near-pure camera movement with no viewmodel decoupling, and any decoupling here risks
+		// desyncing a PIP scope's tube/parallax rendering from the reticle. Hip fire keeps full effect
+		// (ads_blend == 0 -> recoil_ads_mult stays 1); ADS fades toward recoil_ads_mult as aim blends in.
+		SVec3 recoil_pos_target;
+		recoil_pos_target.Set(-input.recoil_yaw * settings.viewmodel.recoil_pos_scale_horz * 0.4f,
+			input.recoil_pitch * settings.viewmodel.recoil_pos_scale_vert, 0.f);
+		SVec3 recoil_rot_target;
+		recoil_rot_target.Set(input.recoil_pitch * settings.viewmodel.recoil_rot_scale_vert,
+			-input.recoil_yaw * settings.viewmodel.recoil_rot_scale_horz * 0.6f,
+			-input.recoil_yaw * settings.viewmodel.recoil_rot_scale_horz * 1.2f);
+		recoil_pos_target.Mul(recoil_ads_mult);
+		recoil_rot_target.Mul(recoil_ads_mult);
+		// Vertical and horizontal axes follow at independent speeds (15/09) -- a slower horizontal
+		// follow_speed means the viewmodel visibly hasn't finished catching up to the old direction by
+		// the time the camera reverses (a "still translating" lag at zigzag inflection points), without
+		// slowing the already-validated vertical climb-follow. SpringVector can't do this (one factor
+		// for all 3 components), so the same exponential-approach factor it uses is computed twice here
+		// and applied per-axis: recoil_pos.x (lateral) and recoil_rot.y/.z (yaw/roll) are horizontal-
+		// driven; recoil_pos.y (vertical) and recoil_rot.x (pitch) are vertical-driven.
+		const float clamped_dt = Clamp(input.dt, 0.f, 0.033f);
+		const float vert_response = std::max(settings.viewmodel.recoil_follow_speed_vert, 0.01f) *
+			std::max(settings.viewmodel.recoil_follow_damping_vert, 0.01f);
+		const float vert_factor = Clamp(1.f - std::exp(-vert_response * clamped_dt), 0.f, 1.f);
+		const float horz_response = std::max(settings.viewmodel.recoil_follow_speed_horz, 0.01f) *
+			std::max(settings.viewmodel.recoil_follow_damping_horz, 0.01f);
+		const float horz_factor = Clamp(1.f - std::exp(-horz_response * clamped_dt), 0.f, 1.f);
+		state.viewmodel.recoil_pos.x += (recoil_pos_target.x - state.viewmodel.recoil_pos.x) * horz_factor;
+		state.viewmodel.recoil_pos.y += (recoil_pos_target.y - state.viewmodel.recoil_pos.y) * vert_factor;
+		state.viewmodel.recoil_rot.x += (recoil_rot_target.x - state.viewmodel.recoil_rot.x) * vert_factor;
+		state.viewmodel.recoil_rot.y += (recoil_rot_target.y - state.viewmodel.recoil_rot.y) * horz_factor;
+		state.viewmodel.recoil_rot.z += (recoil_rot_target.z - state.viewmodel.recoil_rot.z) * horz_factor;
+
+		// Same center-pull as the upstream camera signal (EffectorShot.cpp), applied here too: this
+		// spring's own ~1/horz_response lag otherwise keeps visibly leaning toward whichever side it last
+		// followed for a while after m_angle_horz has already been pulled back, which is what made the
+		// "magnet" persist through a magazine's back half even with the upstream pull active (17/09).
+		if (input.yaw_center_pull > 0.f)
+		{
+			const float vm_pull_factor = std::exp(-input.yaw_center_pull * clamped_dt);
+			state.viewmodel.recoil_pos.x *= vm_pull_factor;
+			state.viewmodel.recoil_rot.y *= vm_pull_factor;
+			state.viewmodel.recoil_rot.z *= vm_pull_factor;
+		}
+
+		ClampVector(state.viewmodel.recoil_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
+		ClampVector(state.viewmodel.recoil_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
+
+		// Muzzle pivot: instead of (or on top of) rotating the whole viewmodel rigidly around its own
+		// origin, redirect part of the vertical rotation to look like it pivots around an off-center
+		// anchor (roughly the grip/wrist) -- the muzzle end, being farther from that anchor, sweeps a
+		// visibly larger arc than the grip end for the same rotation angle, instead of both ends moving
+		// together. Small-angle approximation: displacing a point P by a small rotation R is
+		// approximately -(R x P); only the vertical (pitch, .x) component of the rotation is used, by
+		// design, so horizontal recoil is never amplified by this. input.muzzle_pivot is 0 for every
+		// weapon that doesn't opt in (insurgency_muzzle_pivot absent or 0), making this a no-op then.
+		if (input.muzzle_pivot > 0.f)
+		{
+			float pitch_rad = DegToRad(state.viewmodel.recoil_rot.x) * input.muzzle_pivot;
+			SVec3 pivot_correction;
+			pivot_correction.Set(0.f,
+				pitch_rad * settings.viewmodel.recoil_pivot_z,
+				-pitch_rad * settings.viewmodel.recoil_pivot_y);
+			pivot_correction.Mul(recoil_ads_mult);
+			state.viewmodel.recoil_pos.Add(pivot_correction);
+			ClampVector(state.viewmodel.recoil_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
+		}
+
+		// Idle/aim weapon sway (18/09): viewmodel-only, never touches the real camera/aim -- see
+		// SimulationSwaySettings. Two additive layers: periodic (two sine harmonics, offset in phase and
+		// rate per axis so X/Y/roll don't move in lockstep) plus an independent smoothed-random-walk noise
+		// layer for organic, non-repeating drift. Zero for any weapon that doesn't declare bodycam_sway_*
+		// keys (input.sway_enabled false), and fully gated off by settings.sway.enable globally.
+		if (input.sway_enabled && settings.sway.enable)
+		{
+			// speed_scale scales the time base only (phase advance + noise-walk rate below), never
+			// amplitude -- this is what makes the pattern read as slower/subtler rather than smaller.
+			const float sway_dt = input.dt * std::max(settings.sway.speed_scale, 0.f);
+			state.viewmodel.sway_phase += sway_dt;
+
+			const float ads_lerp = Lerp(1.f, settings.sway.ads_mult, input.ads_blend);
+
+			// Hold-breath endurance/penalty (mirrors TheTazDJ's weapon_sway.script mechanism -- depth while
+			// held, a max hold duration, a post-release "out of breath" penalty -- viewmodel-only instead
+			// of a real camera effector). held_for is seconds of "breath held" credit: rises while the key
+			// is down, drains at hold_breath_restore_rate once released. Once held_for reaches max_time the
+			// character is treated as having let go even if the key is still physically down (out of
+			// breath), which naturally falls through to the release-penalty branch below, same as the
+			// original mod forcing holding_breath = false at that point.
+			if (input.hold_breath_active)
+				state.viewmodel.hold_breath_held_for = std::min(
+					state.viewmodel.hold_breath_held_for + input.dt, settings.sway.hold_breath_max_time);
+			else
+				state.viewmodel.hold_breath_held_for = std::max(
+					state.viewmodel.hold_breath_held_for - input.dt * std::max(settings.sway.hold_breath_restore_rate, 0.f), 0.f);
+
+			const bool hold_breath_effective =
+				input.hold_breath_active && state.viewmodel.hold_breath_held_for < settings.sway.hold_breath_max_time;
+			float hold_breath_target = 1.f;
+			if (hold_breath_effective)
+				hold_breath_target = settings.sway.hold_breath_mult;
+			else if (state.viewmodel.hold_breath_held_for > settings.sway.hold_breath_threshold)
+				hold_breath_target = settings.sway.hold_breath_release_penalty_mult;
+
+			// Both hold-breath and arm-injury ease toward their target over ~0.2-0.25s rather than snapping
+			// (hold-breath: key press/release; injury: health.leftarm/rightarm changes in discrete steps).
+			const float hold_breath_factor = Clamp(1.f - std::exp(-5.f * input.dt), 0.f, 1.f);
+			state.viewmodel.sway_hold_breath_blend +=
+				(hold_breath_target - state.viewmodel.sway_hold_breath_blend) * hold_breath_factor;
+			const float hold_breath_lerp = state.viewmodel.sway_hold_breath_blend;
+
+			// Arm injury (mirrors ZZZ Patch's shaking_hands()/NEW_LIMB_PENALTIES_FEATURE -- hurt arms shake
+			// more -- viewmodel-only). severity is pushed pre-computed from health.leftarm/rightarm.
+			const float injury_factor = Clamp(1.f - std::exp(-4.f * input.dt), 0.f, 1.f);
+			state.viewmodel.sway_injury_blend +=
+				(Clamp(input.arm_injury_severity, 0.f, 1.f) - state.viewmodel.sway_injury_blend) * injury_factor;
+			const float injury_lerp = Lerp(1.f, settings.sway.injury_mult, state.viewmodel.sway_injury_blend);
+
+			const float amp_pos =
+				input.sway_amplitude_pos * settings.sway.amplitude_pos_mult * ads_lerp * hold_breath_lerp * injury_lerp;
+			const float amp_rot =
+				input.sway_amplitude_rot * settings.sway.amplitude_rot_mult * ads_lerp * hold_breath_lerp * injury_lerp;
+
+			const float primary_x = std::sin(state.viewmodel.sway_phase * input.sway_freq_primary * kPi * 2.f);
+			const float primary_y = std::sin(state.viewmodel.sway_phase * input.sway_freq_primary * kPi * 2.f * 0.77f + 1.7f);
+			const float secondary_x = std::sin(state.viewmodel.sway_phase * input.sway_freq_secondary * kPi * 2.f + 0.9f);
+			const float secondary_y = std::sin(state.viewmodel.sway_phase * input.sway_freq_secondary * kPi * 2.f * 1.3f + 2.4f);
+			const float mix = Clamp(input.sway_mix_secondary, 0.f, 1.f);
+			const float periodic_x = primary_x * (1.f - mix) + secondary_x * mix;
+			const float periodic_y = primary_y * (1.f - mix) + secondary_y * mix;
+
+			if (input.sway_noise_amplitude > 0.f)
+			{
+				const float noise_factor = Clamp(1.f - std::exp(-std::max(input.sway_noise_rate, 0.01f) * sway_dt), 0.f, 1.f);
+				state.viewmodel.sway_noise.x += (NextSwayNoiseSample(state.viewmodel.sway_rng) - state.viewmodel.sway_noise.x) * noise_factor;
+				state.viewmodel.sway_noise.y += (NextSwayNoiseSample(state.viewmodel.sway_rng) - state.viewmodel.sway_noise.y) * noise_factor;
+				state.viewmodel.sway_noise.z += (NextSwayNoiseSample(state.viewmodel.sway_rng) - state.viewmodel.sway_noise.z) * noise_factor;
+			}
+			else
+			{
+				state.viewmodel.sway_noise.Set(0.f, 0.f, 0.f);
+			}
+			const float noise_amt = input.sway_noise_amplitude;
+
+			// Internal convention x=pitch, y=yaw, z=roll (matches every other term in this file); swapped
+			// to x=heading/y=pitch only where this is added to output.viewmodel_rot below, same as recoil_rot.
+			state.viewmodel.sway_pos.Set((periodic_x + state.viewmodel.sway_noise.x * noise_amt) * amp_pos,
+				(periodic_y + state.viewmodel.sway_noise.y * noise_amt) * amp_pos * 0.6f,
+				0.f);
+			state.viewmodel.sway_rot.Set((periodic_y + state.viewmodel.sway_noise.y * noise_amt) * amp_rot,
+				(periodic_x + state.viewmodel.sway_noise.x * noise_amt) * amp_rot * 0.5f,
+				(periodic_x * 0.3f + periodic_y * 0.3f + state.viewmodel.sway_noise.z * noise_amt) * amp_rot * 0.3f);
+		}
+		else
+		{
+			state.viewmodel.sway_pos.Set(0.f, 0.f, 0.f);
+			state.viewmodel.sway_rot.Set(0.f, 0.f, 0.f);
+			state.viewmodel.sway_hold_breath_blend = 1.f;
+			state.viewmodel.hold_breath_held_for = 0.f;
+			state.viewmodel.sway_injury_blend = 0.f;
+		}
+
 		SVec3 vm_sprint_pos;
 		SVec3 vm_sprint_rot;
 		if (sprint_bridge_active)
@@ -1100,8 +1289,12 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 
 		SVec3 vm_pos_target = vm_mouse_pos;
 		vm_pos_target.Add(vm_impulse_pos);
+		// NOT scaled by ads_impulse_mult -- recoil_decomp_ads_scale (applied at add-time in
+		// AddRecoilDecompImpulse) is this channel's only ADS attenuation, see decomp_pos's declaration.
+		vm_pos_target.Add(state.viewmodel.decomp_pos);
 		SVec3 vm_rot_target = vm_mouse_rot;
 		vm_rot_target.Add(vm_impulse_rot);
+		vm_rot_target.Add(state.viewmodel.decomp_rot);
 		const float vm_limit_mult = input.ads ? std::max(0.20f, std::max(ads_mouse_mult, ads_impulse_mult)) : 1.f;
 		const float impulse_pos_allowance = Clamp(vm_impulse_pos.Magnitude() * 0.75f, 0.f, std::max(settings.impulse.impulse_pos_cap, 0.f) * 0.45f);
 		const float impulse_rot_allowance = Clamp(vm_impulse_rot.Magnitude() * 0.65f, 0.f, std::max(settings.impulse.impulse_rot_cap, 0.f) * 0.50f);
@@ -1128,11 +1321,53 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		weighted_lower_rot.Mul(settings.features.layer_lower_weight);
 		output.viewmodel_pos = weighted_vm_pos;
 		output.viewmodel_pos.Add(state.viewmodel.fire_pos);
+		output.viewmodel_pos.Add(state.viewmodel.recoil_pos);
+		output.viewmodel_pos.Add(state.viewmodel.sway_pos);
 		output.viewmodel_pos.Add(weighted_lower_pos);
 		output.viewmodel_rot = weighted_vm_rot;
 		output.viewmodel_rot.Add(state.viewmodel.fire_rot);
+		// player_hud.cpp composes the final rotation with setHPB(heading, pitch, bank) -- i.e. .x=heading
+		// (yaw), .y=pitch -- but state.viewmodel.recoil_rot is built and tracked internally as .x=pitch,
+		// .y=yaw (matching every other term in this file: vm_mouse_rot, fire_impulse_rot, etc., all in
+		// pitch/yaw/roll order). Swapped only here, at the point recoil's contribution joins the shared
+		// output, rather than reordering recoil_rot_target/the follow-speed split/the center-pull above,
+		// which all stay internally self-consistent. Found 17/09: recoil_rot_scale_vert (pitch-driven,
+		// always positive/growing through a burst, never random) was landing in the heading slot, producing
+		// a deterministic one-sided horizontal "magnet" -- the actual root cause of that whole symptom.
+		// The other terms above (mouse-throw, fire impulse, lowering) are left as-is; they're pre-existing,
+		// already-tuned Bodycam behavior and weren't implicated.
+		output.viewmodel_rot.x += state.viewmodel.recoil_rot.y;
+		output.viewmodel_rot.y += state.viewmodel.recoil_rot.x;
+		output.viewmodel_rot.z += state.viewmodel.recoil_rot.z;
+		// Same x/y swap as recoil_rot just above, for the same reason (setHPB expects x=heading/y=pitch;
+		// sway_rot is tracked internally as x=pitch/y=yaw like everything else in this file).
+		output.viewmodel_rot.x += state.viewmodel.sway_rot.y;
+		output.viewmodel_rot.y += state.viewmodel.sway_rot.x;
+		output.viewmodel_rot.z += state.viewmodel.sway_rot.z;
 		output.viewmodel_rot.Add(weighted_lower_rot);
 		output.viewmodel_active = true;
+
+#if !defined(BODYCAM_STANDALONE)
+		// Throttled (~7/s) breakdown of every term contributing to the viewmodel's X position / Z roll,
+		// so a persistent lateral pull can be traced to its actual source (mouse-throw sway, recoil-follow,
+		// fire impulse, lowering, ...) instead of guessed at. Toggle: g_insurgency_recoil_debug_log.
+		if (g_insurgency_recoil_debug_log)
+		{
+			static float debug_log_timer = 0.f;
+			debug_log_timer += input.dt;
+			if (debug_log_timer >= 0.15f)
+			{
+				debug_log_timer = 0.f;
+				Msg("* insurgency vm-pos mouse_speed.x=%.4f | mouse_vm.x=%.4f mouse_vm.rotz=%.4f | recoil.x=%.4f recoil.rotz=%.4f | fire.x=%.4f fire.rotz=%.4f | lower.x=%.4f lower.rotz=%.4f | OUT.x=%.4f OUT.rotz=%.4f",
+					state.viewmodel.mouse_speed.x,
+					weighted_vm_pos.x, weighted_vm_rot.z,
+					state.viewmodel.recoil_pos.x, state.viewmodel.recoil_rot.z,
+					state.viewmodel.fire_pos.x, state.viewmodel.fire_rot.z,
+					weighted_lower_pos.x, weighted_lower_rot.z,
+					output.viewmodel_pos.x, output.viewmodel_rot.z);
+			}
+		}
+#endif
 	}
 	else
 	{
@@ -1144,6 +1379,12 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		state.viewmodel.fire_impulse_rot.Set(0.f, 0.f, 0.f);
 		state.viewmodel.fire_pos.Set(0.f, 0.f, 0.f);
 		state.viewmodel.fire_rot.Set(0.f, 0.f, 0.f);
+		state.viewmodel.recoil_pos.Set(0.f, 0.f, 0.f);
+		state.viewmodel.recoil_rot.Set(0.f, 0.f, 0.f);
+		state.viewmodel.decomp_pos.Set(0.f, 0.f, 0.f);
+		state.viewmodel.decomp_rot.Set(0.f, 0.f, 0.f);
+		state.viewmodel.sway_pos.Set(0.f, 0.f, 0.f);
+		state.viewmodel.sway_rot.Set(0.f, 0.f, 0.f);
 	}
 	UpdateBodycamArmLayer(settings, state, input, output);
 	UpdateStalker2ArmLayer(settings, state, input, output);
@@ -1279,11 +1520,57 @@ void AddFireImpulse(const SimulationSettings& settings, SimulationState& state, 
 	if (p <= kEpsilon)
 		return;
 
-	const float side = state.viewmodel.mouse_speed.x >= 0.f ? -1.f : 1.f;
+	// A stationary mouse (mouse_speed.x exactly 0, the common case while holding a controlled burst)
+	// used to fall into the ">= 0" branch and always get the same side -- a deterministic, repeating
+	// roll kick every single shot, identical magazine to magazine, fully independent of any recoil
+	// randomness (found 17/09 from "the viewmodel's path looks the same on every mag dump"). No mouse
+	// motion means no lean direction to reinforce, so it now contributes nothing in that case.
+	const float side = state.viewmodel.mouse_speed.x > 0.f ? -1.f : (state.viewmodel.mouse_speed.x < 0.f ? 1.f : 0.f);
 	state.viewmodel.fire_impulse_pos.Add(0.f, -0.0015f * p, -0.0040f * p);
 	state.viewmodel.fire_impulse_rot.Add(-0.32f * p, 0.f, 0.10f * side * p);
 	ClampVector(state.viewmodel.fire_impulse_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
 	ClampVector(state.viewmodel.fire_impulse_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
+}
+
+// Recoil decompensation (21/09): see SimulationImpulseSettings::recoil_decomp_* for the full rationale.
+// Native C++ event (CActor::on_weapon_shot_stop, once per burst end), so -- like AddFireImpulse above,
+// and unlike the generic Lua-driven kinds below (land/sprint/ads, whose per-kind scale is applied by the
+// calling script before it ever reaches here) -- this reads its own settings.impulse.recoil_decomp_*
+// scale internally rather than expecting a pre-scaled power from the caller. `overrides` (21/09, per-
+// weapon .ltx keys) lets each field be pinned to a specific value for this weapon instead of inheriting
+// the global Bodycam Weapon Recoil MCM slider -- see RecoilDecompOverride's declaration.
+void AddRecoilDecompImpulse(const SimulationSettings& settings, SimulationState& state, float power, bool ads,
+	const RecoilDecompOverride& overrides)
+{
+	if (!settings.features.vm_enable || !settings.features.fire_impulse_enable)
+		return;
+
+	const float base_impulse = overrides.impulse != kDecompUseGlobal ? overrides.impulse : settings.impulse.recoil_decomp_impulse;
+	const float vertical_scale = overrides.vertical_scale != kDecompUseGlobal ? overrides.vertical_scale : settings.impulse.recoil_decomp_vertical_scale;
+	const float forward_scale = overrides.forward_scale != kDecompUseGlobal ? overrides.forward_scale : settings.impulse.recoil_decomp_forward_scale;
+	const float pitch_scale = overrides.pitch_scale != kDecompUseGlobal ? overrides.pitch_scale : settings.impulse.recoil_decomp_pitch_scale;
+	const float horizontal_scale = overrides.horizontal_scale != kDecompUseGlobal ? overrides.horizontal_scale : settings.impulse.recoil_decomp_horizontal_scale;
+	const float ads_scale_base = overrides.ads_scale != kDecompUseGlobal ? overrides.ads_scale : settings.impulse.recoil_decomp_ads_scale;
+
+	const float ads_scale = ads ? Clamp(ads_scale_base, 0.f, 1.f) : 1.f;
+	const float p = Clamp(power, 0.f, 3.f) * base_impulse * ads_scale;
+	if (p <= kEpsilon)
+		return;
+
+	// Internal convention x=pitch, y=yaw, z=roll for rotation (matches every other term in this file).
+	// Anti-rise pitch is the OPPOSITE sign from a normal upward recoil kick -- the muzzle dips instead
+	// of climbing, right as the compensating force the shooter was applying loses what it was fighting.
+	state.viewmodel.decomp_pos.Add(
+		horizontal_scale * 0.006f * p,
+		-vertical_scale * 0.010f * p,
+		-forward_scale * 0.010f * p);
+	state.viewmodel.decomp_rot.Add(
+		-pitch_scale * 0.9f * p,
+		0.f,
+		horizontal_scale * 0.4f * p);
+
+	ClampVector(state.viewmodel.decomp_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));
+	ClampVector(state.viewmodel.decomp_rot, std::max(settings.impulse.impulse_rot_cap, 0.f));
 }
 
 bool AddNamedImpulse(const SimulationSettings& settings, SimulationState& state, const char* kind, float power, bool ads)
@@ -1294,6 +1581,15 @@ bool AddNamedImpulse(const SimulationSettings& settings, SimulationState& state,
 	if (std::strcmp(kind, "fire") == 0)
 	{
 		AddFireImpulse(settings, state, power, ads);
+		return true;
+	}
+
+	if (std::strcmp(kind, "recoil_decomp") == 0)
+	{
+		// No per-weapon overrides available through this generic string-kind path (Lua's
+		// bodycam.add_impulse) -- CActor::on_weapon_shot_stop uses CBodycam::AddRecoilDecompImpulse
+		// directly instead, so it can pass this weapon's insurgency_decomp_* .ltx values.
+		AddRecoilDecompImpulse(settings, state, power, ads, RecoilDecompOverride());
 		return true;
 	}
 

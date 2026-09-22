@@ -70,3 +70,13 @@ void CScriptSound::PlayNoFeedback(CScriptGameObject* object, u32 flags/*!< Loopi
 	THROW3(m_sound._handle(), "There is no sound", *m_caSoundToPlay);
 	m_sound.play_no_feedback((object) ? &object->object() : NULL, flags, delay, &pos, &vol, &freq);
 }
+
+void CScriptSound::SetFadeOut(float duration_s, int curve)
+{
+	m_sound.set_fade_out(duration_s, curve);
+}
+
+void CScriptSound::SetFadeIn(float duration_s, int curve)
+{
+	m_sound.set_fade_in(duration_s, curve);
+}

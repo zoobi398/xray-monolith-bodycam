@@ -1,0 +1,97 @@
+-- Hold-breath key (rewritten 19/09 follow-up): key/modifier/mode now come from a standalone ui_mcm page
+-- (insurgency_hold_breath_mcm.script) with a real click-to-bind key_bind widget -- the native "Modded
+-- EXEs" framework used by the rest of Bodycam Weapon Sway has no live key-capture widget, so this one
+-- setting lives in its own small ui_mcm menu entry instead. Polls key_state() (this engine's raw-DIK
+-- query) every actor_on_update tick rather than the on_key_press/hold/release binding-action events,
+-- since those only fire for keys bound to a named action -- polling works for any raw DIK/mouse button.
+-- Self-correcting: if key_state() ever reads wrong because a menu stole input focus, the very next tick
+-- fixes it, so no watchdog is needed for a swallowed release.
+--
+-- Drives the native sway engine's hold-breath endurance/penalty mechanism (bodycam_simulation.cpp) via
+-- bodycam.set_hold_breath -- see Bodycam Weapon Sway MCM tab for depth/duration/penalty tuning.
+--
+-- Breath sounds (19/09 follow-up): restores TheTazDJ's weapon_sway.script hold/release sfx (its
+-- hold1-4.ogg/release1-4.ogg, copied into this mod's gamedata/sounds/weapon_sway/), same mechanic --
+-- a random hold* clip on press, a random release* clip on release but only if held past
+-- BREATH_SOUND_MIN_HOLD_MS (mirrors the original's 3s threshold, so a quick tap doesn't play a full
+-- "exhale" sound) -- toggleable via Enable Breath Sound on the Insurgency Hold Breath MCM page.
+
+local BREATH_SOUND_MIN_HOLD_MS = 3000
+
+local MODIFIER_DIKS = {
+	ctrl = { DIK_keys.DIK_LCONTROL, DIK_keys.DIK_RCONTROL },
+	alt = { DIK_keys.DIK_LMENU, DIK_keys.DIK_RMENU },
+	shift = { DIK_keys.DIK_LSHIFT, DIK_keys.DIK_RSHIFT },
+}
+
+local function modifier_held(mode)
+	local diks = MODIFIER_DIKS[mode]
+	if not diks then
+		return true -- "none" (or unrecognized) = no modifier required
+	end
+	return key_state(diks[1]) ~= 0 or key_state(diks[2]) ~= 0
+end
+
+local function play_breath_sound(kind)
+	if not (ui_mcm and ui_mcm.get) then
+		return
+	end
+	if ui_mcm.get("insurgency_hold_breath/enable_breath_sound") == false then
+		return
+	end
+	local snd = sound_object("weapon_sway\\" .. kind .. math.random(4))
+	snd:play_no_feedback(db.actor, sound_object.s2d, 0, VEC_ZERO, 1.0, 1.0)
+end
+
+local hold_breath_active = false
+local hold_started_at = 0
+
+local function set_hold_breath(active)
+	if hold_breath_active == active then
+		return
+	end
+	hold_breath_active = active
+	if bodycam and bodycam.set_hold_breath then
+		bodycam.set_hold_breath(active)
+	end
+
+	if active then
+		hold_started_at = time_global()
+		play_breath_sound("hold")
+	elseif (time_global() - hold_started_at) >= BREATH_SOUND_MIN_HOLD_MS then
+		play_breath_sound("release")
+	end
+end
+
+local toggle_state = false
+local prev_key_down = false
+
+local function actor_on_update()
+	if not (ui_mcm and ui_mcm.get and key_state) then
+		return
+	end
+
+	local main_key = ui_mcm.get("insurgency_hold_breath/hold_breath_key") or DIK_keys.DIK_F
+	local modifier_mode = ui_mcm.get("insurgency_hold_breath/hold_breath_modifier") or "none"
+	local hold_mode = ui_mcm.get("insurgency_hold_breath/hold_breath_mode") or "hold"
+
+	local key_down = (key_state(main_key) ~= 0) and modifier_held(modifier_mode)
+
+	if hold_mode == "toggle" then
+		-- React only on the down-edge (key just went from up to down)
+		if key_down and not prev_key_down then
+			toggle_state = not toggle_state
+			set_hold_breath(toggle_state)
+		end
+	else
+		-- Hold: mirror the physical key state directly
+		toggle_state = false
+		set_hold_breath(key_down)
+	end
+
+	prev_key_down = key_down
+end
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_update", actor_on_update)
+end

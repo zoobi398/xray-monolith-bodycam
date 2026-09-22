@@ -32,6 +32,16 @@ static bool bodycam_get_bool(LPCSTR name, bool fallback)
 	return value;
 }
 
+static void bodycam_set_hold_breath(bool active)
+{
+	Bodycam::SetHoldBreathHeld(active);
+}
+
+static void bodycam_set_arm_injury(float severity)
+{
+	Bodycam::SetArmInjurySeverity(severity);
+}
+
 static void bodycam_set_layer_weight(LPCSTR layer, float weight)
 {
 	Bodycam::SetLayerWeight(layer, weight);
@@ -167,6 +177,8 @@ void Bodycam::script_register(lua_State* L)
 		def("set_bool", &bodycam_set_bool),
 		def("get_layer_weight", &bodycam_get_layer_weight),
 		def("set_layer_weight", &bodycam_set_layer_weight),
+		def("set_hold_breath", &bodycam_set_hold_breath),
+		def("set_arm_injury", &bodycam_set_arm_injury),
 		def("apply_preset", &bodycam_apply_preset),
 		def("add_impulse", &bodycam_add_impulse),
 		def("set_viewmodel_profile", &bodycam_set_viewmodel_profile),
