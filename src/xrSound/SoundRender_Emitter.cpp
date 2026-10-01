@@ -30,6 +30,15 @@ CSoundRender_Emitter::CSoundRender_Emitter(void)
 	owner_data = NULL;
 	smooth_volume = 1.f;
 	occluder_volume = 1.f;
+	occluder_gain_hf = 1.f;
+	occluder_gain_wet = 1.f;
+	occ_target_gain = 1.f;
+	occ_target_hf = 1.f;
+	occ_target_wet_gain = 1.f;
+	occ_next_update = 0.f;
+	occ_profile = 0;
+	occ_is_loop = false;
+	duck_gain = 1.f;
 	fade_volume = 1.f;
 	fade_out_duration_s = 0.1f;
 	fade_in_duration_s = 0.f;

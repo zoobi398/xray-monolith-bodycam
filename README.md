@@ -1,4 +1,4 @@
-# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil
+# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil + sound occlusion
 
 Personal fork of [asuparabekon/xray-monolith-bodycam](https://github.com/asuparabekon/xray-monolith-bodycam)
 (itself the X-Ray Monolith MT + Bodycam camera/viewmodel + objective-camera PiP scope build). This
@@ -14,19 +14,33 @@ fork's own additions, on top of everything already in the upstream build:
    "snappy" across a sustained full-auto burst instead of hard-cutting to the same frame every shot, and
    a one-shot viewmodel "release" kick right as a burst genuinely ends. Full writeup, with every changed
    function and every new `.ltx` key: [`docs/ENGINE_CHANGES_INSURGENCY_RECOIL.md`](docs/ENGINE_CHANGES_INSURGENCY_RECOIL.md).
+3. **Material-aware sound occlusion with real diffraction, plus actor-fire priority ducking** --
+   `snd_occlusion_mode 1` replaces the original single-ray flat `-8dB` occlusion with a per-material-class
+   system (foliage/glass/metal/wood/masonry/terrain), multi-sample averaging, a full Fresnel/Maekawa
+   diffraction model for over/around-obstacle paths, and a real EFX low-pass filter (duller, not just
+   quieter, behind cover) -- independently tunable direct vs. reverb-send attenuation, console-measured
+   performance instrumentation, and an MCM page. `snd_duck_mode 1` adds a temporary, loudness-weighted
+   gain reduction on NPC gunshot voices while the actor is firing, approximating auditory masking so the
+   actor's own shot doesn't get squashed by OpenAL's output limiter when both overlap. Both default off
+   (byte-identical to the original engine otherwise). Full writeups:
+   [`docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE0.md`](docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE0.md)
+   (measurement/instrumentation only), [`docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE1_2.md`](docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE1_2.md)
+   (the rework itself), [`docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md`](docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md).
 
 Everything else -- the Bodycam camera/viewmodel system, objective-camera true PiP scopes, MCM menus,
 build/install instructions, modder integration guide -- is upstream `asuparabekon` work, documented in
 full at [`docs/PIP_SYSTEM.md`](docs/PIP_SYSTEM.md) (the original README, moved here so this one can
 stay focused on what this fork actually changes).
 
-## Both additions are opt-in and backward-compatible
+## All additions are opt-in and backward-compatible
 
-Neither feature touches anything unless a weapon's `.ltx` explicitly asks for it, and neither is used
-by any existing content in this repository (the fade API's only caller is an external gameplay mod; the
-recoil system is off for every weapon unless `insurgency_recoil`/`insurgency_shot_anim_sustain` is set).
-A stock weapon, a stock sound, or a build of this repo that never touches the new `.ltx` keys behaves
-identically to upstream. See each doc's "Backward compatibility" section for how that's verified.
+None of these features touch anything unless explicitly turned on (a weapon's `.ltx` for recoil, a
+script call for fade, a console command/MCM toggle for occlusion and ducking), and none are used by any
+existing content in this repository by default (the fade API's only caller is an external gameplay mod;
+the recoil system is off for every weapon unless `insurgency_recoil`/`insurgency_shot_anim_sustain` is
+set; `snd_occlusion_mode` and `snd_duck_mode` both default to `0`). A stock weapon, a stock sound, or a
+build of this repo that never touches the new `.ltx` keys/console commands behaves identically to
+upstream. See each doc's "Backward compatibility" section for how that's verified.
 
 ## Building
 

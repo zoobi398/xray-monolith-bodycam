@@ -62,6 +62,100 @@ public:
 	u32 cache_bytes_per_line;
 
 public:
+	// Phase 0 occlusion instrumentation (29/09, "snd_occlusion_stats"). Public rather than
+	// friend/accessor-gated to match this class's existing style (s_emitters, Timer, etc. are already
+	// public) -- CSoundRender_Emitter::update_culling (SoundRender_Emitter_FSM.cpp) increments
+	// emitters_3d directly via the global SoundRender pointer. Purely additive counters: nothing here
+	// changes what get_occlusion/get_occlusion_to/update_culling actually compute.
+	struct SOcclusionCounters
+	{
+		u64 ticks = 0, ticks_ai = 0;
+		u32 calls = 0, rays = 0, blocked = 0, calls_ai = 0, emitters_3d = 0;
+		void reset() { *this = SOcclusionCounters(); }
+	};
+	SOcclusionCounters m_occ_cur;    // frame currently being built
+	SOcclusionCounters m_occ_last;   // last fully-completed frame -- what statistic() reports
+	SOcclusionCounters m_occ_window; // rolling accumulator for the ~5s log summary
+	u32 m_occ_window_frames = 0;
+	float m_occ_window_time = 0.f;
+	u64 m_occ_window_max_ticks = 0;
+
+	// Phase 1/2 occlusion rework (29/09, "snd_occlusion_mode 1"). Material table indexed directly by
+	// CDB::TRI/RESULT's material ID (bounds-checked on every lookup -- the 14-bit field can reference an
+	// ID this table doesn't know about, e.g. stale compiled geometry). Built once per level load by
+	// IGame_Level.cpp via set_occlusion_materials(); empty (size 0) until then, in which case every hit
+	// falls back to m_occ_default_material.
+	xr_vector<SSoundOcclusionMaterial> m_occ_materials;
+	SSoundOcclusionMaterial m_occ_default_material;
+	float m_occ_max_loss_db = 28.f;
+	float m_occ_max_hf_loss_db = 36.f;
+	float m_occ_max_thickness_m = 12.f;
+
+	// Per-frame full-evaluation budget (snd_occlusion_budget) -- reset in update(), consumed by
+	// get_occlusion_ex callers via occ_budget_take(). Shot starts (stStarting/stStartingLooped) bypass
+	// the budget entirely (a shot must always be evaluated); only the cadence-gated update_culling path
+	// is budget-limited.
+	u32 m_occ_budget_used = 0;
+	IC bool occ_budget_take()
+	{
+		if (psSoundOcclusionBudget <= 0 || m_occ_budget_used < (u32)psSoundOcclusionBudget)
+		{
+			m_occ_budget_used++;
+			return true;
+		}
+		return false;
+	}
+
+	struct SSoundOcclusionResult
+	{
+		float gain = 1.f;     // direct/dry path broadband gain, 0-1
+		float gain_hf = 1.f;  // direct path AL_LOWPASS_GAINHF, 0-1 (1 = no filtering)
+		float wet_gain = 1.f; // reverb SEND path broadband gain -- deliberately NOT the same as 'gain'
+		                      // (see snd_occlusion_wet_sensitivity): a real obstacle chokes the direct
+		                      // sound far more than it chokes the room's own reflected energy, which
+		                      // keeps arriving via paths this system never traces.
+		bool blocked = false;
+		bool diffracted = false; // true if an over/around path won over the direct one
+	};
+
+	virtual void set_occlusion_materials(const SSoundOcclusionMaterial* table, u32 count) override;
+	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m) override;
+
+	// Actor-fire priority ducking (30/09). fTimer_Value timestamp of the actor's last weapon shot -- far
+	// in the past initially so nothing is "ducked" before the first shot ever fires. Read directly by
+	// CSoundRender_Emitter::update_culling() via the global SoundRender pointer, same access pattern as
+	// fTimer_Value itself.
+	float m_actor_last_shot_time = -1000.f;
+	virtual void on_actor_weapon_shot() override { m_actor_last_shot_time = fTimer_Value; }
+
+	// Thin passthroughs to the AL_EXT_EFX filter object functions, which are per-device extension
+	// function pointers private to CSoundRender_CoreA (loaded via LOAD_PROC, not statically linked).
+	// Base implementation is a no-op/unsupported so this class stays usable without an A-backend;
+	// CSoundRender_CoreA overrides all three to call the real functions. SoundRender_TargetA.cpp calls
+	// these through the generic SoundRender pointer instead of downcasting. u32 here instead of ALuint
+	// so this AL-agnostic base header doesn't need to pull in <AL/al.h> -- both are unsigned int.
+	virtual u32 occ_gen_filter() { return 0; }
+	virtual void occ_delete_filter(u32 id) {}
+	virtual void occ_set_filter_lowpass(u32 id, float gain, float gain_hf) {}
+
+	// profile: 0 = light (1 sample), 1 = impulse (5 samples + diffraction), 2 = loop (3 samples).
+	// debug_name/is_weapon_shot only drive the optional snd_occlusion_debug log line -- purely cosmetic,
+	// never change the computed result.
+	SSoundOcclusionResult get_occlusion_ex(const Fvector& src, u32 profile, LPCSTR debug_name = nullptr,
+		bool is_weapon_shot = false);
+
+private:
+	// One "all hits, sorted, material-priced" ray between two points. Every surface crossed adds its
+	// class's loss_db once; loss_db_per_m only applies when the NEXT hit shares the same material (a
+	// real measured entry+exit pair) -- never guessed for a lone/unpaired hit. Increments 'rays'.
+	void occ_trace_losses(const Fvector& from, const Fvector& to, float& out_loss_db, float& out_hf_db, u32& rays);
+
+	// Phase 2 diffraction (29/09): tests candidate over/around paths and returns the best one found (or
+	// blocked=true, gain=0 if none is clear). Caller combines with the direct-path result via
+	// gain=max(direct,diffracted).
+	SSoundOcclusionResult occ_try_diffraction(const Fvector& L, const Fvector& S, float direct_dist);
+
+public:
 	CSoundRender_Core();
 	virtual ~CSoundRender_Core();
 

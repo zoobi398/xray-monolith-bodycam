@@ -104,6 +104,11 @@ public:
 	void set_listener(const CSoundRender_Environment& env);
 	void get_listener(CSoundRender_Environment& env);
 	void commit();
+
+	// Phase 1/2 occlusion rework (29/09): see CSoundRender_Core's declarations for why these exist.
+	virtual u32 occ_gen_filter() override;
+	virtual void occ_delete_filter(u32 id) override;
+	virtual void occ_set_filter_lowpass(u32 id, float gain, float gain_hf) override;
 };
 
 extern CSoundRender_CoreA* SoundRenderA;

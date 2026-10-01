@@ -9,6 +9,8 @@ local page_monsters = options_modded_exes_monsters.PAGE
 local page_bodycam = options_modded_exes_bodycam.PAGE
 local page_bodycam_recoil = options_modded_exes_bodycam_recoil.PAGE
 local page_bodycam_sway = options_modded_exes_bodycam_sway.PAGE
+local page_sound_occlusion = options_modded_exes_sound_occlusion.PAGE
+local page_sound_duck = options_modded_exes_sound_duck.PAGE
 
 -- Import smart constructors
 options_builder.import_into(this)
@@ -23,6 +25,8 @@ GROUP = group {
 	page_bodycam,
 	page_bodycam_recoil,
 	page_bodycam_sway,
+	page_sound_occlusion,
+	page_sound_duck,
 	page_stalkers,
 	page_monsters,
 }

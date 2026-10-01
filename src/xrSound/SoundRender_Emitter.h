@@ -61,6 +61,36 @@ public:
 
 	Fvector occluder [3];
 
+	// Phase 1/2 occlusion rework (29-30/09, "snd_occlusion_mode 1"). occluder_volume (existing field,
+	// above) is repurposed at mode 1 to mean the DIRECT path's smoothed broadband gain (feeds
+	// m_direct_filter's AL_LOWPASS_GAIN, NOT AL_GAIN -- see update_culling/SoundRender_TargetA).
+	// occluder_gain_wet is the separate, smoothed reverb-SEND broadband gain (m_send_filter's
+	// AL_LOWPASS_GAIN). occluder_gain_hf mirrors both filters' AL_LOWPASS_GAINHF. occ_target_* are the
+	// last full get_occlusion_ex() result; update_culling() smoothly follows them at ~4/s instead of
+	// recomputing every frame. occ_profile is resolved once in start() from the sound's SOUND_TYPE_*
+	// (impulse/loop/light -- see get_occlusion_ex's profile parameter).
+	float occluder_gain_hf;
+	float occluder_gain_wet;
+	float occ_target_gain;
+	float occ_target_hf;
+	float occ_target_wet_gain;
+	float occ_next_update; // SoundRender->fTimer_Value-based, when the next full re-evaluation is due
+	u8 occ_profile;
+	// Whether THIS voice is a looped emission (resolved once in start() from its own _loop parameter --
+	// deliberately NOT derived from occ_profile, since a weapon's own sustained fire-loop sound is still
+	// classified occ_profile==1 "impulse"). Gates whether update_culling() keeps re-evaluating occlusion
+	// for the life of this voice (loop) or freezes it at the single stStarting/stStartingLooped result
+	// (one-shot) -- see the "Update (01/10)" note in update_culling.
+	bool occ_is_loop;
+
+	// Actor-fire priority ducking (30/09, "snd_duck_mode 1"). A separate multiplier, NOT folded into
+	// occluder_volume (which is occlusion's own smoothed state and must not be contaminated by an
+	// unrelated signal). Applied directly to AL_GAIN via smooth_volume (see update_culling) -- unlike
+	// occlusion, ducking is meant to reduce both the direct signal AND the reverb send equally (auditory
+	// masking is a property of the listener, not of the sound's propagation path), and AL_GAIN already
+	// scales both proportionally, so no separate filter routing is needed here.
+	float duck_gain;
+
 	State m_current_state;
 	u32 m_stream_cursor;
 	u32 m_cur_handle_cursor;

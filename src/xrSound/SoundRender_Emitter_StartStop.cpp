@@ -4,6 +4,7 @@
 #include "SoundRender_Core.h"
 #include "SoundRender_Emitter.h"
 #include "SoundRender_Source.h"
+#include "..\xrServerEntities\ai_sounds.h"
 
 void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 {
@@ -20,6 +21,20 @@ void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 	p_source.volume = 1.f; // 1.f
 	set_frequency(1.f);
 	p_source.max_ai_distance = source()->m_fMaxAIDist; // 300.f;
+
+	// Phase 1/2 occlusion rework (29/09): profile for get_occlusion_ex, resolved once per (re)start
+	// rather than every frame. Weapon shots and explosions get the full "impulse" treatment (5 samples
+	// + diffraction candidates); any other looped sound gets the cheaper "loop" profile; everything else
+	// (footsteps, voices, one-shot impacts) gets "light" (1 sample, no diffraction).
+	{
+		const int g_type = owner_data->g_type;
+		const bool is_impulse = ((g_type & SOUND_TYPE_WEAPON_SHOOTING) == SOUND_TYPE_WEAPON_SHOOTING) ||
+			((g_type & SOUND_TYPE_WORLD_OBJECT_EXPLODING) == SOUND_TYPE_WORLD_OBJECT_EXPLODING);
+		occ_profile = is_impulse ? 1 : (_loop ? 2 : 0);
+	}
+	occ_is_loop = (_loop != FALSE);
+	occ_next_update = 0.f;
+	duck_gain = 1.f; // guards against a reused emitter starting a new sound already ducked
 
 	if (fis_zero(delay, EPS_L))
 	{

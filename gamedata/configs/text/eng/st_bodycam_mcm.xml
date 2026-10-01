@@ -89,4 +89,23 @@
     <string id="ui_mm_modded_exes_gameplay_bodycam_sway_sway_hold_breath_threshold"><text>Hold Breath Penalty Threshold (bodycam_sway_hold_breath_threshold)</text></string>
     <string id="ui_mcm_insurgency_hold_breath_title"><text>Insurgency Hold Breath</text></string>
     <string id="ui_mcm_menu_insurgency_hold_breath"><text>Insurgency Hold Breath</text></string>
+
+    <string id="ui_mm_menu_sound_occlusion"><text>Sound Occlusion</text></string>
+    <string id="ui_mm_sound_occlusion_modded_exes"><text>Sound Occlusion</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_mode"><text>Enable Material-Aware Occlusion (snd_occlusion_mode)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_strength"><text>Occlusion Strength (snd_occlusion_strength)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_update_ms"><text>Recalc Interval, ms (snd_occlusion_update_ms)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_budget"><text>Max Full Evaluations Per Frame (snd_occlusion_budget)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_diffraction"><text>Enable Diffraction (Over/Around Obstacles) (snd_occlusion_diffraction)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_wet_sensitivity"><text>Reverb Send Sensitivity to Occlusion, 0=Unaffected (snd_occlusion_wet_sensitivity)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_debug"><text>Debug Log Level, 0-2 (snd_occlusion_debug)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_stats"><text>Log Performance Stats (snd_occlusion_stats)</text></string>
+
+    <string id="ui_mm_menu_sound_duck"><text>Actor Fire Ducking</text></string>
+    <string id="ui_mm_sound_duck_modded_exes"><text>Actor Fire Ducking</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_duck_snd_duck_mode"><text>Enable Actor-Fire Priority Ducking (snd_duck_mode)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_duck_snd_duck_strength"><text>Duck Strength, 0-1 (snd_duck_strength)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_duck_snd_duck_hold_ms"><text>Hold Time After Last Shot, ms (snd_duck_hold_ms)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_duck_snd_duck_attack_rate"><text>Attack Speed, Gain/s (snd_duck_attack_rate)</text></string>
+    <string id="ui_mm_modded_exes_gameplay_sound_duck_snd_duck_release_rate"><text>Release Speed, Gain/s (snd_duck_release_rate)</text></string>
 </string_table>

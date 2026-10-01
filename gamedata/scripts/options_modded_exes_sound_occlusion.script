@@ -1,0 +1,26 @@
+--- Sound occlusion (Phase 1/2 rework, 29/09) options tree for modded EXE builds.
+--- Plain xrEngine console commands (snd_occlusion_*), not the Bodycam Lua bridge -- these widgets bind
+--- directly to their console command via "cmd", same idiom as the stock HDR10 modded-exe page.
+--- mode 0 (default) is byte-identical to the original occlusion; everything else here is inert until
+--- mode is switched to 1. See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md.
+
+options_builder.import_into(this)
+
+local function label(id)
+    return "ui_mm_modded_exes_gameplay_sound_occlusion_" .. id
+end
+
+PAGE = page {
+    { id = "sound_occlusion" },
+
+    line {},
+    list_bool { id = "snd_occlusion_mode", text = label("snd_occlusion_mode"), cmd = "snd_occlusion_mode" },
+    track { id = "snd_occlusion_strength", text = label("snd_occlusion_strength"), def = 1.0, step = 0.05, cmd = "snd_occlusion_strength" },
+    track { id = "snd_occlusion_update_ms", text = label("snd_occlusion_update_ms"), def = 150, step = 10, cmd = "snd_occlusion_update_ms" },
+    track { id = "snd_occlusion_budget", text = label("snd_occlusion_budget"), def = 12, step = 1, cmd = "snd_occlusion_budget" },
+    list_bool { id = "snd_occlusion_diffraction", text = label("snd_occlusion_diffraction"), cmd = "snd_occlusion_diffraction" },
+    track { id = "snd_occlusion_wet_sensitivity", text = label("snd_occlusion_wet_sensitivity"), def = 0.35, step = 0.05, cmd = "snd_occlusion_wet_sensitivity" },
+    line {},
+    track { id = "snd_occlusion_debug", text = label("snd_occlusion_debug"), def = 0, step = 1, cmd = "snd_occlusion_debug" },
+    list_bool { id = "snd_occlusion_stats", text = label("snd_occlusion_stats"), cmd = "snd_occlusion_stats" },
+}

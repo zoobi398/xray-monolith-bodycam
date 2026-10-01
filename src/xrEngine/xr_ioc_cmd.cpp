@@ -1159,6 +1159,24 @@ void CCC_Register()
 	CMD4(CCC_SoundParamsSmoothing, "snd_doppler_smoothing", &soundSmoothingParams::steps, 1, 100);
 
     // EFX Reverb overwrite
+    CMD4(CCC_Integer, "snd_occlusion_stats", &psSoundOcclusionStats, 0, 1);
+
+    // Phase 1/2 occlusion rework (29/09). snd_occlusion_mode 0 (default) is byte-identical to before
+    // any of this existed. See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md.
+    CMD4(CCC_Integer, "snd_occlusion_mode", &psSoundOcclusionMode, 0, 1);
+    CMD4(CCC_Float, "snd_occlusion_strength", &psSoundOcclusionStrength, 0.f, 2.f);
+    CMD4(CCC_Integer, "snd_occlusion_update_ms", &psSoundOcclusionUpdateMs, 50, 1000);
+    CMD4(CCC_Integer, "snd_occlusion_budget", &psSoundOcclusionBudget, 1, 64);
+    CMD4(CCC_Integer, "snd_occlusion_diffraction", &psSoundOcclusionDiffraction, 0, 1);
+    CMD4(CCC_Integer, "snd_occlusion_debug", &psSoundOcclusionDebug, 0, 2);
+    CMD4(CCC_Float, "snd_occlusion_wet_sensitivity", &psSoundOcclusionWetSensitivity, 0.f, 1.f);
+
+    CMD4(CCC_Integer, "snd_duck_mode", &psSoundDuckMode, 0, 1);
+    CMD4(CCC_Float, "snd_duck_strength", &psSoundDuckStrength, 0.f, 1.f);
+    CMD4(CCC_Float, "snd_duck_hold_ms", &psSoundDuckHoldMs, 0.f, 1000.f);
+    CMD4(CCC_Float, "snd_duck_attack_rate", &psSoundDuckAttackRate, 0.5f, 100.f);
+    CMD4(CCC_Float, "snd_duck_release_rate", &psSoundDuckReleaseRate, 0.5f, 100.f);
+
     CMD4(CCC_Integer, "snd_efx_reverb_overwrite", &reverb_overwrite, FALSE, TRUE);
 
     CMD4(CCC_Float, "snd_efx_reverb_overwrite_density", &psReverbDensity, 0.f, 1.f);

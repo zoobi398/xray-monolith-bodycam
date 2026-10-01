@@ -38,6 +38,46 @@ XRSOUND_API extern float psSoundVMusic;
 XRSOUND_API extern float psSoundVMusicFactor;
 XRSOUND_API extern float psSoundRolloff;
 XRSOUND_API extern float psSoundOcclusionScale;
+// Phase 0 occlusion instrumentation (29/09): "snd_occlusion_stats" console command. Off by default --
+// purely adds the OCC:/OCC AI: lines to rs_stats and a periodic log summary, changes nothing about
+// occlusion itself. See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md.
+XRSOUND_API extern int psSoundOcclusionStats;
+
+// Phase 1/2 occlusion rework (29/09). psSoundOcclusionMode 0 (default) is the untouched, byte-identical
+// original path above (psSoundOcclusionScale etc.); 1 switches 3D emitters to the material-aware,
+// multi-sample, diffraction-capable path in get_occlusion_ex(). Everything below is inert at mode 0.
+XRSOUND_API extern int psSoundOcclusionMode;
+XRSOUND_API extern float psSoundOcclusionStrength;   // snd_occlusion_strength: global dB multiplier, 0-2
+XRSOUND_API extern int psSoundOcclusionUpdateMs;     // snd_occlusion_update_ms: recalc interval for long/looped sounds
+XRSOUND_API extern int psSoundOcclusionBudget;       // snd_occlusion_budget: max full evaluations per frame
+XRSOUND_API extern int psSoundOcclusionDiffraction;  // snd_occlusion_diffraction: 0/1, over/around candidate paths
+XRSOUND_API extern int psSoundOcclusionDebug;        // snd_occlusion_debug: 0 off, 1 = per-shot log line
+// snd_occlusion_wet_sensitivity (30/09): how much the reverb SEND path follows the direct path's
+// occlusion loss. 0 = the room's reflected energy is never attenuated by occlusion at all (only SAR's
+// own indoor/room-size reverb governs it); 1 = fully coupled, the old (reported too "on/off") behaviour
+// where ducking behind cover chokes the reverb send exactly as hard as the direct sound.
+XRSOUND_API extern float psSoundOcclusionWetSensitivity;
+
+// Actor-fire priority ducking (30/09, "snd_duck_mode"): a temporary gain reduction on NPC gunshot voices
+// while the actor's own weapon is firing, approximating auditory masking (a shot at your own ear dominates
+// simultaneous perception) instead of letting both compete for the same OpenAL Soft output-limiter
+// headroom. Off by default -- inert, byte-identical to before this existed, until enabled.
+XRSOUND_API extern int psSoundDuckMode;           // snd_duck_mode: 0 off (default), 1 on
+XRSOUND_API extern float psSoundDuckStrength;     // snd_duck_strength: 0-1, max gain cut on a full-loudness NPC shot
+XRSOUND_API extern float psSoundDuckHoldMs;       // snd_duck_hold_ms: how long the duck stays engaged after the actor's last shot
+XRSOUND_API extern float psSoundDuckAttackRate;   // snd_duck_attack_rate: gain units/s approaching the ducked target
+XRSOUND_API extern float psSoundDuckReleaseRate;  // snd_duck_release_rate: gain units/s releasing back to 1.0
+
+// One resolved material class (see sound_occlusion.ltx). loss_db/hf_loss_db apply once per crossed
+// surface; loss_db_per_m only applies when a matching entry+exit pair of the SAME material is found on
+// the same ray (real measured thickness) -- a single unpaired hit never guesses at a thickness.
+struct SSoundOcclusionMaterial
+{
+	float loss_db = 10.f;
+	float loss_db_per_m = 1.f;
+	float hf_loss_db = 12.f;
+	bool ignore = false; // acoustically transparent (foliage, thin grass...) -- contributes nothing
+};
 XRSOUND_API extern Flags32 psSoundFlags;
 XRSOUND_API extern int psSoundTargets;
 XRSOUND_API extern float snd_efx_environment_change_time;
@@ -354,6 +394,18 @@ public:
 	u32 _cache_hits;
 	u32 _cache_misses;
 	u32 _events;
+
+	// Phase 0 occlusion instrumentation (29/09): cost of the last fully-completed frame's occlusion
+	// work, gated behind psSoundOcclusionStats. All zero if the flag is off (no measurable overhead
+	// either way -- see CSoundRender_Core::SOcclusionCounters). "_ai" is the AI-hearing side
+	// (get_occlusion_to), the rest is the player-side (get_occlusion).
+	float _occ_ms;
+	u32 _occ_calls;
+	u32 _occ_rays;
+	u32 _occ_blocked;
+	float _occ_ai_ms;
+	u32 _occ_ai_calls;
+	u32 _emitters_3d;
 };
 
 class XRSOUND_API CSound_stats_ext
@@ -433,6 +485,18 @@ public:
 
 	virtual float get_occlusion_to(const Fvector& hear_pt, const Fvector& snd_pt, float dispersion = 0.2f) = 0;
 	virtual float get_occlusion(Fvector& P, float R, Fvector* occ) = 0;
+
+	// Phase 1/2 occlusion rework (29/09), "snd_occlusion_mode 1". See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md.
+	// Per-material acoustic losses, keyed by the same material ID CDB::TRI/RESULT already carry -- built
+	// once per level load from GameMtlLib + sound_occlusion.ltx (xrEngine side, which already depends on
+	// GMLib) and handed to xrSound as a flat table, so xrSound itself never needs to depend on GMLib.
+	virtual void set_occlusion_materials(const SSoundOcclusionMaterial* table, u32 count) = 0;
+	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m) = 0;
+
+	// Actor-fire priority ducking (30/09). Called once from CActor::on_weapon_shot_start() -- the sound
+	// side records the timestamp on its own clock and derives the duck envelope from elapsed time, so no
+	// cross-module clock synchronization is needed. No-op at snd_duck_mode 0.
+	virtual void on_actor_weapon_shot() = 0;
 
 	virtual void object_relcase(CObject* obj) = 0;
 	virtual const Fvector& listener_position() = 0;

@@ -13,6 +13,7 @@
 #include "feel_sound.h"
 
 #include "../xrCore/profiler.h"
+#include "GameMtlLib.h"
 
 //#include "securom_api.h"
 
@@ -88,6 +89,101 @@ static void __stdcall build_callback(Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt
 	g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);
 }
 
+// Phase 1/2 occlusion rework (29/09), "snd_occlusion_mode 1". Builds the flat, GameMtl-ID-indexed
+// material table xrSound needs (xrSound can't depend on GMLib itself, see Sound.h) and hands it over.
+// Runs once per level load, right after Sound->set_geometry_occ() below -- negligible cost (a few
+// hundred materials at most), never in the per-frame hot path.
+static void BuildAndPushOcclusionMaterials()
+{
+	SSoundOcclusionMaterial default_mat;
+	default_mat.loss_db = 10.f;
+	default_mat.loss_db_per_m = 1.f;
+	default_mat.hf_loss_db = 12.f;
+	default_mat.ignore = false;
+
+	float max_loss_db = 28.f, max_hf_loss_db = 36.f, max_thickness_m = 12.f;
+
+	string_path fname;
+	CInifile* ini = FS.exist(fname, "$game_config$", "sound_occlusion.ltx") ? xr_new<CInifile>(fname, TRUE) : nullptr;
+
+	if (ini)
+	{
+		if (ini->section_exist("sound_occlusion_limits"))
+		{
+			LPCSTR sec = "sound_occlusion_limits";
+			if (ini->line_exist(sec, "max_loss_db")) max_loss_db = ini->r_float(sec, "max_loss_db");
+			if (ini->line_exist(sec, "max_hf_loss_db")) max_hf_loss_db = ini->r_float(sec, "max_hf_loss_db");
+			if (ini->line_exist(sec, "max_thickness_m")) max_thickness_m = ini->r_float(sec, "max_thickness_m");
+		}
+		if (ini->section_exist("default"))
+		{
+			LPCSTR sec = "default";
+			if (ini->line_exist(sec, "loss_db")) default_mat.loss_db = ini->r_float(sec, "loss_db");
+			if (ini->line_exist(sec, "loss_db_per_m")) default_mat.loss_db_per_m = ini->r_float(sec, "loss_db_per_m");
+			if (ini->line_exist(sec, "hf_loss_db")) default_mat.hf_loss_db = ini->r_float(sec, "hf_loss_db");
+			if (ini->line_exist(sec, "ignore")) default_mat.ignore = ini->r_bool(sec, "ignore");
+		}
+	}
+
+	// Resolves one GameMtl to a material class: first substring match in [sound_occlusion_classes]
+	// (checked in the order the ltx declares them), then this material's own legacy
+	// sound_occlusion_factor (materials\*.ltx) converted to a loss_db if it's set and nonzero, then
+	// [default]/default_mat as the final fallback.
+	auto resolve = [&](SGameMtl* mat) -> SSoundOcclusionMaterial
+	{
+		if (ini && ini->section_exist("sound_occlusion_classes"))
+		{
+			CInifile::Sect& S = ini->r_section("sound_occlusion_classes");
+			for (CInifile::SectCIt I = S.Data.begin(); I != S.Data.end(); ++I)
+			{
+				if (!strstr(mat->m_Name.c_str(), I->first.c_str()))
+					continue;
+				LPCSTR class_name = I->second.c_str();
+				if (0 == xr_strcmp(class_name, "ignore"))
+				{
+					SSoundOcclusionMaterial m = default_mat;
+					m.ignore = true;
+					return m;
+				}
+				if (ini->section_exist(class_name))
+				{
+					SSoundOcclusionMaterial m = default_mat;
+					if (ini->line_exist(class_name, "loss_db")) m.loss_db = ini->r_float(class_name, "loss_db");
+					if (ini->line_exist(class_name, "loss_db_per_m")) m.loss_db_per_m = ini->r_float(class_name, "loss_db_per_m");
+					if (ini->line_exist(class_name, "hf_loss_db")) m.hf_loss_db = ini->r_float(class_name, "hf_loss_db");
+					if (ini->line_exist(class_name, "ignore")) m.ignore = ini->r_bool(class_name, "ignore");
+					return m;
+				}
+				break; // matched a class name with no matching section -- fall through to the legacy/default path below
+			}
+		}
+		if (mat->fSndOcclusionFactor > 0.f && mat->fSndOcclusionFactor < 1.f)
+		{
+			SSoundOcclusionMaterial m = default_mat;
+			m.loss_db = -20.f * log10f(mat->fSndOcclusionFactor);
+			return m;
+		}
+		return default_mat;
+	};
+
+	int max_id = 0;
+	for (GameMtlIt it = GMLib.FirstMaterial(); it != GMLib.LastMaterial(); ++it)
+		max_id = std::max(max_id, (*it)->GetID());
+
+	xr_vector<SSoundOcclusionMaterial> table(max_id + 1, default_mat);
+	for (GameMtlIt it = GMLib.FirstMaterial(); it != GMLib.LastMaterial(); ++it)
+	{
+		SGameMtl* mat = *it;
+		if (mat->GetID() >= 0 && mat->GetID() < (int)table.size())
+			table[mat->GetID()] = resolve(mat);
+	}
+
+	Sound->set_occlusion_materials(&table.front(), (u32)table.size());
+	Sound->set_occlusion_limits(max_loss_db, max_hf_loss_db, max_thickness_m);
+
+	xr_delete(ini);
+}
+
 xrCriticalSection lloadcs;
 bool IGame_Level::Load(u32 dwNum)
 {
@@ -122,6 +218,7 @@ bool IGame_Level::Load(u32 dwNum)
 	ObjectSpace.Load( [](Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt, void* params){g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);});
 	//Sound->set_geometry_occ ( &Static );
 	Sound->set_geometry_occ(ObjectSpace.GetStaticModel());
+	BuildAndPushOcclusionMaterials();
 	Sound->set_handler(_sound_event);
 
 	pApp->LoadSwitch();

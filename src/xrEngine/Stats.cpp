@@ -308,6 +308,12 @@ void CStats::Show()
 		F.OutNext("*** SOUND:   %2.2fms", Sound.result);
 		F.OutNext("  TGT/SIM/E: %d/%d/%d", snd_stat._rendered, snd_stat._simulated, snd_stat._events);
 		F.OutNext("  HIT/MISS:  %d/%d", snd_stat._cache_hits, snd_stat._cache_misses);
+		if (psSoundOcclusionStats)
+		{
+			F.OutNext("  OCC:       %2.3fms, %d calls, %d rays, %d blocked, %d 3D",
+				snd_stat._occ_ms, snd_stat._occ_calls, snd_stat._occ_rays, snd_stat._occ_blocked, snd_stat._emitters_3d);
+			F.OutNext("  OCC AI:    %2.3fms, %d calls", snd_stat._occ_ai_ms, snd_stat._occ_ai_calls);
+		}
 		F.OutSkip();
 		F.OutNext("Input:       %2.2fms", Input.result);
 		F.OutNext("clRAY:       %2.2fms, %d, %2.0fK", clRAY.result, clRAY.count, r_ps);

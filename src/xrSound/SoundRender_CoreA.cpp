@@ -112,6 +112,36 @@ void CSoundRender_CoreA::LoadEffect()
 
 // load_reverb loads the given initial reverb properties into the given OpenAL
 //  effect object, and returns non-zero on success.
+// Phase 1/2 occlusion rework (29/09): thin passthroughs to the private, per-device alGenFilters/etc.
+// function pointers above, so SoundRender_TargetA.cpp can call them through the generic SoundRender
+// pointer (CSoundRender_Core::occ_gen_filter and friends) without needing a downcast or friend access.
+u32 CSoundRender_CoreA::occ_gen_filter()
+{
+	if (!m_is_supported)
+		return 0;
+	ALuint id = 0;
+	A_CHK(alGenFilters(1, &id));
+	A_CHK(alFilteri(id, AL_FILTER_TYPE, AL_FILTER_LOWPASS));
+	return id;
+}
+
+void CSoundRender_CoreA::occ_delete_filter(u32 id)
+{
+	if (!m_is_supported || 0 == id)
+		return;
+	ALuint al_id = (ALuint)id;
+	if (alIsFilter(al_id))
+		A_CHK(alDeleteFilters(1, &al_id));
+}
+
+void CSoundRender_CoreA::occ_set_filter_lowpass(u32 id, float gain, float gain_hf)
+{
+	if (!m_is_supported || 0 == id)
+		return;
+	A_CHK(alFilterf((ALuint)id, AL_LOWPASS_GAIN, gain));
+	A_CHK(alFilterf((ALuint)id, AL_LOWPASS_GAINHF, gain_hf));
+}
+
 int CSoundRender_CoreA::load_reverb(ALuint effect_, const EFXEAXREVERBPROPERTIES* reverb)
 {
 	ALenum err;

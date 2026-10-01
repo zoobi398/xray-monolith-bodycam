@@ -1,0 +1,21 @@
+--- Actor-fire priority ducking (30/09) options tree for modded EXE builds.
+--- Plain xrEngine console commands (snd_duck_*), not the Bodycam Lua bridge -- same idiom as the
+--- sound occlusion / stock HDR10 modded-exe pages. Off by default (snd_duck_mode 0): everything here is
+--- inert until enabled. See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md (Update section).
+
+options_builder.import_into(this)
+
+local function label(id)
+    return "ui_mm_modded_exes_gameplay_sound_duck_" .. id
+end
+
+PAGE = page {
+    { id = "sound_duck" },
+
+    line {},
+    list_bool { id = "snd_duck_mode", text = label("snd_duck_mode"), cmd = "snd_duck_mode" },
+    track { id = "snd_duck_strength", text = label("snd_duck_strength"), def = 0.55, step = 0.05, cmd = "snd_duck_strength" },
+    track { id = "snd_duck_hold_ms", text = label("snd_duck_hold_ms"), def = 120, step = 10, cmd = "snd_duck_hold_ms" },
+    track { id = "snd_duck_attack_rate", text = label("snd_duck_attack_rate"), def = 18, step = 1, cmd = "snd_duck_attack_rate" },
+    track { id = "snd_duck_release_rate", text = label("snd_duck_release_rate"), def = 3, step = 0.5, cmd = "snd_duck_release_rate" },
+}

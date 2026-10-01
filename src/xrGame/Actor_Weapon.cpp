@@ -271,6 +271,11 @@ void CActor::HitSector(CObject* who, CObject* weapon)
 
 void CActor::on_weapon_shot_start(CWeapon* weapon)
 {
+	// Actor-fire priority ducking (30/09, "snd_duck_mode 1"): records the shot's timestamp on the sound
+	// system's own clock; see CSoundRender_Emitter::update_culling for how it's turned into a duck on NPC
+	// gunshot voices. No-op at snd_duck_mode 0.
+	::Sound->on_actor_weapon_shot();
+
 	//CWeaponMagazined* pWM = smart_cast<CWeaponMagazined*> (weapon);
 	CameraRecoil const& camera_recoil = (IsZoomAimingMode()) ? weapon->zoom_cam_recoil : weapon->cam_recoil;
 

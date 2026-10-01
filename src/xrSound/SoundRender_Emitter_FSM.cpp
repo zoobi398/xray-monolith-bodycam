@@ -129,10 +129,32 @@ void CSoundRender_Emitter::update(float dt)
 		fTimeToStop = fTime + (get_length_sec() / psSpeedOfSound); 
 		fTimeToPropagade = fTime;
 		fade_volume = 1.f;
-		occluder_volume = SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		if (!b2D && psSoundOcclusionMode == 1)
+		{
+			// Phase 1/2 (29/09): a shot's own defining sound -- always fully evaluated (budget doesn't
+			// apply here), assigned directly with no smoothing so the very first frame already carries
+			// the real result. update_culling() right below picks up from here with its normal
+			// cadence-gated re-evaluation; occ_next_update is set so it doesn't immediately redo this
+			// same work on this same frame.
+			CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
+				occ_profile, source() ? source()->file_name() : nullptr, occ_profile == 1);
+			occluder_volume = r.gain;       // repurposed at mode 1: direct-filter broadband gain, not AL_GAIN
+			occluder_gain_hf = r.gain_hf;
+			occluder_gain_wet = r.wet_gain; // reverb-send broadband gain, independently smoothed
+			occ_target_gain = r.gain;
+			occ_target_hf = r.gain_hf;
+			occ_target_wet_gain = r.wet_gain;
+			occ_next_update = SoundRender->fTimer_Value + _max(psSoundOcclusionUpdateMs, 0) / 1000.f;
+		}
+		else
+			occluder_volume = SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		// Mode 1, 3D: occlusion no longer multiplies AL_GAIN at all (see design note in
+		// update_culling below) -- it now lives entirely in the two filters' own gains instead, so the
+		// reverb send isn't forced through the same attenuation as the direct signal.
 		smooth_volume = p_source.base_volume * p_source.volume * (owner_data->s_type == st_Effect
 			                                                          ? psSoundVEffects * psSoundVFactor
-			                                                          : psSoundVMusic * psSoundVMusicFactor) * (b2D ? 1.f : occluder_volume);
+			                                                          : psSoundVMusic * psSoundVMusicFactor) *
+			(b2D ? 1.f : (psSoundOcclusionMode == 1 ? 1.f : occluder_volume));
 		if (update_culling(dt))
 		{
 			m_current_state = stPlaying;
@@ -154,10 +176,25 @@ void CSoundRender_Emitter::update(float dt)
 		fTimeToStop = 0xffffffff;
 		fTimeToPropagade = fTime;
 		fade_volume = 1.f;
-		occluder_volume = SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		if (!b2D && psSoundOcclusionMode == 1)
+		{
+			// Phase 1/2 (29/09): see the identical block in the stStarting case above.
+			CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
+				occ_profile, source() ? source()->file_name() : nullptr, occ_profile == 1);
+			occluder_volume = r.gain;
+			occluder_gain_hf = r.gain_hf;
+			occluder_gain_wet = r.wet_gain;
+			occ_target_gain = r.gain;
+			occ_target_hf = r.gain_hf;
+			occ_target_wet_gain = r.wet_gain;
+			occ_next_update = SoundRender->fTimer_Value + _max(psSoundOcclusionUpdateMs, 0) / 1000.f;
+		}
+		else
+			occluder_volume = SoundRender->get_occlusion(p_source.position, .2f, occluder);
 		smooth_volume = p_source.base_volume * p_source.volume * (owner_data->s_type == st_Effect
 			                                                          ? psSoundVEffects * psSoundVFactor
-			                                                          : psSoundVMusic * psSoundVMusicFactor) * (b2D ? 1.f : occluder_volume);
+			                                                          : psSoundVMusic * psSoundVMusicFactor) *
+			(b2D ? 1.f : (psSoundOcclusionMode == 1 ? 1.f : occluder_volume));
 		if (update_culling(dt))
 		{
 			m_current_state = stPlayingLooped;
@@ -376,6 +413,11 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 	}
 	else
 	{
+		// Phase 0 occlusion instrumentation (29/09): every 3D emitter that reaches this branch this
+		// frame, regardless of whether it goes on to call get_occlusion (world_ambient/culled ones
+		// won't) -- a simple "how many active 3D sounds" gauge alongside the occlusion call/ray counts.
+		SoundRender->m_occ_cur.emitters_3d++;
+
 		// Check range
 		float dist = SoundRender->listener_position().distance_to(p_source.position);
 		if (dist > p_source.max_distance)
@@ -400,15 +442,85 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 		//v2v3v4 out
 
 		// Update occlusion
-		float occ = (owner_data->g_type == SOUND_TYPE_WORLD_AMBIENT) ? 1.0f : SoundRender->get_occlusion(p_source.position, .2f, occluder);
-		volume_lerp(occluder_volume, occ, 1.f, dt);
-		clamp(occluder_volume, 0.f, 1.f);
+		if (owner_data->g_type == SOUND_TYPE_WORLD_AMBIENT)
+		{
+			occluder_volume = 1.f;
+			occluder_gain_hf = 1.f;
+			occluder_gain_wet = 1.f;
+		}
+		else if (psSoundOcclusionMode == 0)
+		{
+			// Original path, byte-identical to before Phase 0/1/2 existed.
+			float occ = SoundRender->get_occlusion(p_source.position, .2f, occluder);
+			volume_lerp(occluder_volume, occ, 1.f, dt);
+			clamp(occluder_volume, 0.f, 1.f);
+		}
+		else if (occ_is_loop)
+		{
+			// Phase 1/2 (29-30/09): cadence-gated (snd_occlusion_update_ms) and budget-limited
+			// (snd_occlusion_budget) full re-evaluation, smoothly followed at ~4/s in between --
+			// faster than mode 0's fixed 1.0/s since a listener/NPC can genuinely move behind cover
+			// mid-sustain, and this path is already far cheaper per-call than mode 0 fears.
+			// Update (01/10): only reached for looped voices -- see the one-shot branch below.
+			const float now = SoundRender->fTimer_Value;
+			if (now >= occ_next_update && SoundRender->occ_budget_take())
+			{
+				const bool debug_this = occ_profile == 1;
+				CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
+					occ_profile, debug_this && source() ? source()->file_name() : nullptr, debug_this);
+				occ_target_gain = r.gain;
+				occ_target_hf = r.gain_hf;
+				occ_target_wet_gain = r.wet_gain;
+				occ_next_update = now + _max(psSoundOcclusionUpdateMs, 0) / 1000.f;
+			}
+			volume_lerp(occluder_volume, occ_target_gain, 4.f, dt);
+			volume_lerp(occluder_gain_hf, occ_target_hf, 4.f, dt);
+			volume_lerp(occluder_gain_wet, occ_target_wet_gain, 4.f, dt);
+			clamp(occluder_volume, 0.f, 1.f);
+			clamp(occluder_gain_hf, 0.f, 1.f);
+			clamp(occluder_gain_wet, 0.f, 1.f);
+		}
+		// else (01/10): one-shot voice (occ_is_loop == false) -- occluder_volume/gain_hf/gain_wet already
+		// hold the single result stStarting computed the instant this sound was emitted, and are
+		// deliberately left untouched for the rest of this voice's playback. A sound already in flight
+		// doesn't retroactively re-route itself around an obstacle the listener ducks behind afterward,
+		// and a one-shot's whole lifetime (a gunshot's crack+tail) is far too short for the listener's
+		// real position to have moved meaningfully anyway -- continuously re-evaluating it only produced
+		// an unrealistic "instant mute the moment I crouch" snap. Looped voices (the branch above) keep
+		// full continuous tracking, since they genuinely can outlast the listener staying in one place.
+
+		// Actor-fire priority ducking (30/09, "snd_duck_mode 1"). Independent of occlusion mode -- applies
+		// on top of whatever occlusion already computed above. Only gunshot/explosion-profile voices are a
+		// target (occ_profile == 1, resolved once in start()); the actor's own weapon sound never reaches
+		// this 3D branch at all (it plays through the b2D branch above), so it can never duck itself.
+		// duck_target flips between a strength/loudness-scaled value and 1.0 based on elapsed time since
+		// the actor's last shot (psSoundDuckHoldMs) -- volume_lerp (with a fast attack, slow release rate)
+		// turns that flip into a click-free ramp, same primitive already proven for occlusion smoothing.
+		if (psSoundDuckMode && occ_profile == 1)
+		{
+			const float loudness_weight = _min(_max(volume_att * occluder_volume, 0.f), 1.f);
+			const float since_last_shot_ms = (SoundRender->fTimer_Value - SoundRender->m_actor_last_shot_time) * 1000.f;
+			const bool duck_active = since_last_shot_ms < psSoundDuckHoldMs;
+			const float duck_target = duck_active ? (1.f - psSoundDuckStrength * loudness_weight) : 1.f;
+			const float rate = (duck_target < duck_gain) ? psSoundDuckAttackRate : psSoundDuckReleaseRate;
+			volume_lerp(duck_gain, duck_target, rate, dt);
+			clamp(duck_gain, 0.f, 1.f);
+		}
+		else
+		{
+			duck_gain = 1.f;
+		}
 	}
 	clamp(fade_volume, 0.f, 1.f);
 
 	// Update smoothing
 	//LostAlphaRus in
-	smooth_volume = (p_source.base_volume * volume_att * (owner_data->s_type == st_Effect ? psSoundVEffects * psSoundVFactor : psSoundVMusic * psSoundVMusicFactor) * occluder_volume * fade_volume);
+	// Mode 1, 3D: occlusion no longer multiplies AL_GAIN -- see the stStarting/stStartingLooped cases
+	// above for why (decouples the direct path from the reverb send, which has its own gain instead).
+	const float occ_for_gain = (psSoundOcclusionMode == 1 && !b2D) ? 1.f : occluder_volume;
+	// duck_gain (30/09) is 1.f for every 2D sound and every non-gunshot 3D sound (see update_culling),
+	// so this multiply is a no-op unless snd_duck_mode is on and this voice is an active NPC gunshot.
+	smooth_volume = (p_source.base_volume * volume_att * (owner_data->s_type == st_Effect ? psSoundVEffects * psSoundVFactor : psSoundVMusic * psSoundVMusicFactor) * occ_for_gain * fade_volume * duck_gain);
 	//LostAlphaRus out
 
 	if (smooth_volume < psSoundCull)

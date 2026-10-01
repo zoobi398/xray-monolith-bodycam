@@ -14,6 +14,11 @@ CSoundRender_TargetA::CSoundRender_TargetA(): CSoundRender_Target()
 	cache_pitch = 1.f;
 	pSource = 0;
 	Slot = u32(-1);
+	m_direct_filter = 0;
+	m_send_filter = 0;
+	cache_hf = -1.f;
+	cache_gain_direct = -1.f;
+	cache_gain_wet = -1.f;
 }
 
 CSoundRender_TargetA::~CSoundRender_TargetA()
@@ -39,6 +44,14 @@ BOOL CSoundRender_TargetA::_initialize()
 		A_CHK(alSourcef (pSource, AL_MAX_GAIN, 1.f));
 		A_CHK(alSourcef (pSource, AL_GAIN, cache_gain));
 		A_CHK(alSourcef (pSource, AL_PITCH, cache_pitch));
+
+		// Phase 1/2 occlusion rework (29/09): create both low-pass filters once per pooled target,
+		// regardless of the current snd_occlusion_mode, so the mode can be toggled live later without
+		// needing to recreate targets. Never bound to a source unless mode 1 is active (see render()).
+		// occ_gen_filter/occ_delete_filter/occ_set_filter_lowpass are passthroughs on SoundRender --
+		// the actual alGenFilters/etc. function pointers are private to CSoundRender_CoreA.
+		m_direct_filter = SoundRender->occ_gen_filter();
+		m_send_filter = SoundRender->occ_gen_filter();
 		return TRUE;
 	}
 	else
@@ -54,6 +67,10 @@ void CSoundRender_TargetA::_destroy()
 	if (alIsSource(pSource))
 		alDeleteSources(1, &pSource);
 	A_CHK(alDeleteBuffers (sdef_target_count, pBuffers));
+	SoundRender->occ_delete_filter(m_direct_filter);
+	SoundRender->occ_delete_filter(m_send_filter);
+	m_direct_filter = 0;
+	m_send_filter = 0;
 	inherited::_destroy();
 }
 
@@ -78,10 +95,20 @@ void CSoundRender_TargetA::render()
 	for (u32 buf_idx = 0; buf_idx < sdef_target_count; buf_idx++)
 		fill_block(pBuffers[buf_idx]);
 
+	// Phase 1/2 occlusion rework (29/09): only bind the low-pass filters for this voice's lifetime when
+	// mode 1 is active AND it's a 3D emitter (2D/HUD sounds are never occluded, matching mode 0). A
+	// mode toggle only affects sounds that (re)start after the toggle, same lifecycle as Slot below.
+	const bool use_occ_filter = SoundRender->m_is_supported && psSoundOcclusionMode == 1 && !m_pEmitter->b2D;
+	// Force the first fill_parameters() call to actually push values, not skip on a stale cache match.
+	cache_hf = -1.f;
+	cache_gain_direct = -1.f;
+	cache_gain_wet = -1.f;
+	A_CHK(alSourcei(pSource, AL_DIRECT_FILTER, use_occ_filter ? m_direct_filter : AL_FILTER_NULL));
+
 	A_CHK(alSourceQueueBuffers(pSource, sdef_target_count, pBuffers));
 	if (Slot != u32(-1) && !m_pEmitter->bIntro)
 	{
-		A_CHK(alSource3i(pSource, AL_AUXILIARY_SEND_FILTER, Slot, 0, AL_FILTER_NULL));
+		A_CHK(alSource3i(pSource, AL_AUXILIARY_SEND_FILTER, Slot, 0, use_occ_filter ? m_send_filter : AL_FILTER_NULL));
 	}
 	// demonized: explicitly disable effects by sending sounds to null slot, ie. not sending
 	else
@@ -187,6 +214,35 @@ void CSoundRender_TargetA::fill_parameters()
 	{
 		cache_gain = _gain;
 		A_CHK(alSourcef (pSource, AL_GAIN, _gain));
+	}
+
+	// Phase 1/2 occlusion rework (29-30/09): live low-pass update. The filter OBJECTS are already bound
+	// to the source for this voice's whole lifetime (render(), above) whenever mode 1 applies to it --
+	// modifying their parameters here takes effect immediately without re-binding anything.
+	// 30/09: the direct and send filters now get INDEPENDENT broadband gains (occluder_volume vs
+	// occluder_gain_wet -- see SoundRender_Emitter_FSM.cpp) instead of both riding on the shared
+	// AL_GAIN. This is what actually fixes occlusion feeling like a mute switch indoors: a real
+	// obstacle chokes the direct signal, but the room's own reflected energy (the reverb send) is only
+	// partly affected, governed by snd_occlusion_wet_sensitivity. The send filter still gets a milder
+	// (sqrt) HF cut on top -- reflected sound loses less treble than the direct path around an obstacle.
+	if (SoundRender->m_is_supported && psSoundOcclusionMode == 1 && !m_pEmitter->b2D)
+	{
+		float hf = m_pEmitter->occluder_gain_hf;
+		clamp(hf, 0.01f, 1.f);
+		float gain_direct = m_pEmitter->occluder_volume;
+		clamp(gain_direct, 0.01f, 1.f);
+		float gain_wet = m_pEmitter->occluder_gain_wet;
+		clamp(gain_wet, 0.01f, 1.f);
+
+		if (!fsimilar(hf, cache_hf, 0.01f) || !fsimilar(gain_direct, cache_gain_direct, 0.01f) ||
+			!fsimilar(gain_wet, cache_gain_wet, 0.01f))
+		{
+			cache_hf = hf;
+			cache_gain_direct = gain_direct;
+			cache_gain_wet = gain_wet;
+			SoundRender->occ_set_filter_lowpass(m_direct_filter, gain_direct, hf);
+			SoundRender->occ_set_filter_lowpass(m_send_filter, gain_wet, sqrtf(hf));
+		}
 	}
 
 	VERIFY2(m_pEmitter, SE->source()->file_name());

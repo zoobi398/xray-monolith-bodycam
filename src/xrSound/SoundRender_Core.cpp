@@ -15,6 +15,23 @@ float psSpeedOfSound = 1.f;
 int psSoundTargets = 1024;
 Flags32 psSoundFlags = {ss_Hardware | ss_EFX};
 float psSoundOcclusionScale = 0.5f;
+int psSoundOcclusionStats = 0;
+int psSoundOcclusionMode = 0;
+float psSoundOcclusionStrength = 1.f;
+int psSoundOcclusionUpdateMs = 150;
+int psSoundOcclusionBudget = 12;
+int psSoundOcclusionDiffraction = 1;
+int psSoundOcclusionDebug = 0;
+float psSoundOcclusionWetSensitivity = 0.35f;
+int psSoundDuckMode = 0;
+// 0.55 ~= -7dB at full loudness_weight (1.0): the middle of the 6-8dB range Phase 0's own measured
+// baseline suggests the OLD occlusion system was quasi-permanently applying in cluttered indoor scenes
+// (78.1% average "blocked" rate at Garbage) -- this "gives back" roughly that same headroom, but only
+// during the narrow window the actor is actually firing, instead of constantly regardless of context.
+float psSoundDuckStrength = 0.55f;
+float psSoundDuckHoldMs = 120.f;
+float psSoundDuckAttackRate = 18.f;
+float psSoundDuckReleaseRate = 3.f;
 float psSoundCull = 0.01f;
 float psSoundRolloff = 0.75f;
 u32 psSoundModel = 0;

@@ -1,0 +1,76 @@
+; Sound occlusion material table -- "snd_occlusion_mode 1" (Phase 1/2 rework).
+; See docs/ENGINE_CHANGES_SOUND_OCCLUSION.md for the full engine-side design.
+;
+; Values below are STARTING POINTS to tune by ear for the game, not physical measurements (a real
+; concrete wall attenuates 40+dB, which would make firefights through walls inaudible -- not the goal).
+; Edit freely; reload a level (or restart) for changes to take effect (the table is built once per
+; level load from this file + GameMtlLib, see IGame_Level.cpp::BuildAndPushOcclusionMaterials).
+
+[sound_occlusion_classes]
+; Substring of the GameMtl name (materials\gamemtl.xr / materials\materials.ltx) = class below.
+; Checked in the order listed here, first match wins. A material that matches nothing falls back to
+; its own legacy sound_occlusion_factor if set, else [default].
+bush            = foliage
+tree_leaf       = foliage
+leaves          = foliage
+grass           = foliage
+water           = ignore
+glass           = glass
+metal           = metal
+tin             = metal
+thin_metal      = metal
+wood            = wood
+concrete        = masonry
+brick           = masonry
+stone           = masonry
+plaster         = masonry
+earth           = terrain
+ground          = terrain
+asphalt         = terrain
+sand            = terrain
+
+; class          loss_db  loss_db_per_m  hf_loss_db  ignore
+[foliage]
+loss_db         = 0.5
+loss_db_per_m   = 0.3
+hf_loss_db      = 1.5
+ignore          = 0
+
+[ignore]
+ignore          = 1
+
+[glass]
+loss_db         = 6
+loss_db_per_m   = 0
+hf_loss_db      = 8
+
+[metal]
+loss_db         = 12
+loss_db_per_m   = 2
+hf_loss_db      = 10
+
+[wood]
+loss_db         = 8
+loss_db_per_m   = 1
+hf_loss_db      = 10
+
+[masonry]
+loss_db         = 14
+loss_db_per_m   = 2
+hf_loss_db      = 14
+
+[terrain]
+loss_db         = 10
+loss_db_per_m   = 0.3
+hf_loss_db      = 16
+
+[default]
+loss_db         = 10
+loss_db_per_m   = 1
+hf_loss_db      = 12
+ignore          = 0
+
+[sound_occlusion_limits]
+max_loss_db     = 28    ; hard cap on total loss along one ray -- never total silence from occlusion alone
+max_hf_loss_db  = 36
+max_thickness_m = 12    ; thickness between a matched entry+exit pair is never counted past this

@@ -17,6 +17,16 @@ public:
 	float cache_pitch;
 	ALuint Slot;
 
+	// Phase 1/2 occlusion rework (29/09, "snd_occlusion_mode 1"). Created once per pooled target (if
+	// EFX is supported) regardless of mode, so mode can be toggled live without recreating targets;
+	// only ACTUALLY bound to the source (render()) when mode 1 is active for that voice. cache_hf avoids
+	// redundant alFilterf calls, same pattern as cache_gain/cache_pitch above.
+	ALuint m_direct_filter;
+	ALuint m_send_filter;
+	float cache_hf;
+	float cache_gain_direct; // 30/09: broadband AL_LOWPASS_GAIN cache, direct filter
+	float cache_gain_wet;    // 30/09: broadband AL_LOWPASS_GAIN cache, send filter (independent of direct)
+
 	ALuint buf_block;
 private:
 	void fill_block(ALuint BufferID);
