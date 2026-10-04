@@ -33,6 +33,7 @@ void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 		occ_profile = is_impulse ? 1 : (_loop ? 2 : 0);
 	}
 	occ_is_loop = (_loop != FALSE);
+	occ_snapshot_valid = false;
 	occ_next_update = 0.f;
 	duck_gain = 1.f; // guards against a reused emitter starting a new sound already ducked
 

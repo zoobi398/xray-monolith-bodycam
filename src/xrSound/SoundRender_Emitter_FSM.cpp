@@ -4,6 +4,7 @@
 #include "SoundRender_Emitter.h"
 #include "SoundRender_Core.h"
 #include "SoundRender_Source.h"
+#include "..\xrServerEntities\ai_sounds.h"
 
 //#define MEASURE_PROCESSING_TIME
 
@@ -113,6 +114,25 @@ void CSoundRender_Emitter::update(float dt)
 		need_preplay_update = false;
 	}
 
+	// 02/10: a one-shot voice's occlusion is a snapshot of the moment the SHOT happened, not of the moment
+	// its voice happens to start. Many NPC gunshot voices start later than the shot itself (layers with a
+	// .ltx delay -- typically the tails -- and the distance-based propagation delay above), sitting in
+	// stStartingDelayed meanwhile; evaluating only at stStarting meant ducking behind cover during that
+	// wait baked the "behind cover" result into the tail. Take the snapshot on the first update with a
+	// valid position instead, and let stStarting reuse it.
+	if (!b2D && psSoundOcclusionMode == 1 && !occ_is_loop && !occ_snapshot_valid && owner_data &&
+		owner_data->g_type != SOUND_TYPE_WORLD_AMBIENT && m_current_state > stStopped &&
+		m_current_state < stPlaying && _valid(p_source.position) &&
+		!p_source.position.similar(Fvector().set(0.f, 0.f, 0.f)))
+	{
+		CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
+			occ_profile, source() ? source()->file_name() : nullptr, occ_profile == 1);
+		occ_target_gain = r.gain;
+		occ_target_hf = r.gain_hf;
+		occ_target_wet_gain = r.wet_gain;
+		occ_snapshot_valid = true;
+	}
+
 	switch (m_current_state)
 	{
 	case stStopped:
@@ -136,14 +156,19 @@ void CSoundRender_Emitter::update(float dt)
 			// the real result. update_culling() right below picks up from here with its normal
 			// cadence-gated re-evaluation; occ_next_update is set so it doesn't immediately redo this
 			// same work on this same frame.
-			CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
-				occ_profile, source() ? source()->file_name() : nullptr, occ_profile == 1);
-			occluder_volume = r.gain;       // repurposed at mode 1: direct-filter broadband gain, not AL_GAIN
-			occluder_gain_hf = r.gain_hf;
-			occluder_gain_wet = r.wet_gain; // reverb-send broadband gain, independently smoothed
-			occ_target_gain = r.gain;
-			occ_target_hf = r.gain_hf;
-			occ_target_wet_gain = r.wet_gain;
+			// 02/10: reuse the shot-time snapshot (see update()) when one was taken; evaluate here only
+			// as a fallback if it wasn't (position never valid before this point).
+			if (!occ_snapshot_valid)
+			{
+				CSoundRender_Core::SSoundOcclusionResult r = SoundRender->get_occlusion_ex(p_source.position,
+					occ_profile, source() ? source()->file_name() : nullptr, occ_profile == 1);
+				occ_target_gain = r.gain;
+				occ_target_hf = r.gain_hf;
+				occ_target_wet_gain = r.wet_gain;
+			}
+			occluder_volume = occ_target_gain;       // repurposed at mode 1: direct-filter broadband gain, not AL_GAIN
+			occluder_gain_hf = occ_target_hf;
+			occluder_gain_wet = occ_target_wet_gain; // reverb-send broadband gain, independently smoothed
 			occ_next_update = SoundRender->fTimer_Value + _max(psSoundOcclusionUpdateMs, 0) / 1000.f;
 		}
 		else

@@ -430,10 +430,13 @@ void CSoundRender_Core::set_occlusion_limits(float max_loss_db, float max_hf_los
 // loss_db once; loss_db_per_m only applies when the VERY NEXT hit (by distance) shares the same
 // material -- a real measured entry+exit pair -- never guessed for a lone/unpaired hit (game collision
 // meshes are frequently single-sided, so a clean pair isn't always available).
-void CSoundRender_Core::occ_trace_losses(const Fvector& from, const Fvector& to, float& out_loss_db, float& out_hf_db, u32& rays)
+void CSoundRender_Core::occ_trace_losses(const Fvector& from, const Fvector& to, float& out_loss_db, float& out_hf_db, u32& rays,
+	float* out_raw_loss_db)
 {
 	out_loss_db = 0.f;
 	out_hf_db = 0.f;
+	if (out_raw_loss_db)
+		*out_raw_loss_db = 0.f;
 	if (!geom_MODEL)
 		return;
 
@@ -478,8 +481,15 @@ void CSoundRender_Core::occ_trace_losses(const Fvector& from, const Fvector& to,
 		}
 	}
 
-	out_loss_db = _min(out_loss_db, m_occ_max_loss_db);
-	out_hf_db = _min(out_hf_db, m_occ_max_hf_loss_db);
+	// Caps interpolate between the outdoor values (sound_occlusion.ltx) and the indoor cvars (02/10).
+	const float f = occ_indoor_f();
+	const float cap_loss = m_occ_max_loss_db + (psSoundOcclusionIndoorMaxLoss - m_occ_max_loss_db) * f;
+	const float cap_hf = m_occ_max_hf_loss_db + (psSoundOcclusionIndoorMaxHfLoss - m_occ_max_hf_loss_db) * f;
+
+	if (out_raw_loss_db)
+		*out_raw_loss_db = out_loss_db; // pre-cap sum, for the debug log: how far past the cap this ray would go
+	out_loss_db = _min(out_loss_db, cap_loss);
+	out_hf_db = _min(out_hf_db, cap_hf);
 }
 
 // Phase 2 diffraction: only called when the direct path (occ_trace_losses, above) is already
@@ -640,18 +650,20 @@ CSoundRender_Core::SSoundOcclusionResult CSoundRender_Core::get_occlusion_ex(con
 	offsets[4].mul(right, -o);
 	const u32 n = (profile == 1) ? 5 : (profile == 2 ? 3 : 1);
 
-	const float strength = _max(psSoundOcclusionStrength, 0.f);
-	float energy = 0.f, hf_db_sum = 0.f;
+	const float indoor_f = occ_indoor_f();
+	const float strength = _max(psSoundOcclusionStrength + (psSoundOcclusionIndoorStrength - psSoundOcclusionStrength) * indoor_f, 0.f);
+	float energy = 0.f, hf_db_sum = 0.f, raw_db_sum = 0.f;
 	for (u32 s = 0; s < n; ++s)
 	{
 		Fvector target;
 		target.add(src, offsets[s]);
-		float loss_db = 0.f, hf_db = 0.f;
-		occ_trace_losses(L, target, loss_db, hf_db, m_occ_cur.rays);
+		float loss_db = 0.f, hf_db = 0.f, raw_db = 0.f;
+		occ_trace_losses(L, target, loss_db, hf_db, m_occ_cur.rays, &raw_db);
 		loss_db *= strength;
 		hf_db *= strength;
 		energy += powf(10.f, -loss_db / 10.f);
 		hf_db_sum += hf_db;
+		raw_db_sum += raw_db;
 	}
 	energy /= float(n);
 	res.gain = _sqrt(_max(energy, 0.f)); // power-domain average -> amplitude-domain gain
@@ -686,10 +698,13 @@ CSoundRender_Core::SSoundOcclusionResult CSoundRender_Core::get_occlusion_ex(con
 
 	if (psSoundOcclusionDebug >= 1 && is_weapon_shot)
 	{
-		Msg("* [snd_occ] %s dist=%.1f gain=%.2f (%.1fdB) wet=%.2f hf=%.2f (%.1fdB) %s%s",
+		// raw= mean direct-path material sum BEFORE the cap and before strength (how far past the cap the
+		// geometry really goes); ind= the indoor factor in effect (0 outdoor .. 1 indoor).
+		Msg("* [snd_occ] %s dist=%.1f gain=%.2f (%.1fdB) wet=%.2f hf=%.2f (%.1fdB) %s%s raw=%.1fdB ind=%.2f",
 			debug_name ? debug_name : "?", dist, res.gain, -20.f * log10f(_max(res.gain, 0.0001f)),
 			res.wet_gain, res.gain_hf, -20.f * log10f(_max(res.gain_hf, 0.0001f)),
-			res.blocked ? "BLOCKED" : "clear", res.diffracted ? " (diffracted)" : "");
+			res.blocked ? "BLOCKED" : "clear", res.diffracted ? " (diffracted)" : "",
+			raw_db_sum / float(n), indoor_f);
 	}
 
 	return res;

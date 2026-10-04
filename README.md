@@ -1,4 +1,4 @@
-# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil + sound occlusion
+# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil + sound occlusion + gun-part jiggle
 
 Personal fork of [asuparabekon/xray-monolith-bodycam](https://github.com/asuparabekon/xray-monolith-bodycam)
 (itself the X-Ray Monolith MT + Bodycam camera/viewmodel + objective-camera PiP scope build). This
@@ -25,7 +25,14 @@ fork's own additions, on top of everything already in the upstream build:
    (byte-identical to the original engine otherwise). Full writeups:
    [`docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE0.md`](docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE0.md)
    (measurement/instrumentation only), [`docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE1_2.md`](docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE1_2.md)
-   (the rework itself), [`docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md`](docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md).
+   (the rework itself, including the optional indoor value set driven by the Spatial Audio Rework indoor
+   score), [`docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md`](docs/ENGINE_CHANGES_ACTOR_FIRE_DUCKING.md).
+4. **Secondary-motion ("jiggle") physics for weapon-attached parts** -- a per-bone damped-spring
+   controller for moving parts on a weapon's own model (bipod legs, carry handles, keychains), driven by
+   the weapon's own motion (so it reacts to Bodycam's recoil, sway and movement for free), with
+   independent per-bone tuning and per-axis hinge limits, configured entirely from `.ltx`. Opt-in per
+   weapon (`jiggle_bones`), costs nothing for any weapon that doesn't declare it. Experimental: first
+   version, being tuned in-game. Full writeup: [`docs/ENGINE_CHANGES_GUN_PART_JIGGLE.md`](docs/ENGINE_CHANGES_GUN_PART_JIGGLE.md).
 
 Everything else -- the Bodycam camera/viewmodel system, objective-camera true PiP scopes, MCM menus,
 build/install instructions, modder integration guide -- is upstream `asuparabekon` work, documented in

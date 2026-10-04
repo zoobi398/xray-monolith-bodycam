@@ -148,7 +148,14 @@ private:
 	// One "all hits, sorted, material-priced" ray between two points. Every surface crossed adds its
 	// class's loss_db once; loss_db_per_m only applies when the NEXT hit shares the same material (a
 	// real measured entry+exit pair) -- never guessed for a lone/unpaired hit. Increments 'rays'.
-	void occ_trace_losses(const Fvector& from, const Fvector& to, float& out_loss_db, float& out_hf_db, u32& rays);
+	void occ_trace_losses(const Fvector& from, const Fvector& to, float& out_loss_db, float& out_hf_db, u32& rays,
+		float* out_raw_loss_db = nullptr);
+
+	// 0 = outdoor values, 1 = indoor values (see Sound.h). 0 whenever snd_occlusion_indoor_mode is off.
+	IC float occ_indoor_f() const
+	{
+		return psSoundOcclusionIndoorMode ? _max(0.f, _min(psSoundOcclusionIndoorFactor, 1.f)) : 0.f;
+	}
 
 	// Phase 2 diffraction (29/09): tests candidate over/around paths and returns the best one found (or
 	// blocked=true, gain=0 if none is clear). Caller combines with the direct-path result via

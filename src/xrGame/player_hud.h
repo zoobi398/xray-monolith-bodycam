@@ -5,6 +5,7 @@
 #include "../Include/xrRender/KinematicsAnimated.h"
 #include "actor_defs.h"
 #include "player_hud_legs.h"
+#include "weapon_part_jiggle.h"
 
 #define SCOPE_ATTACH_IDX 2
 
@@ -314,6 +315,11 @@ struct attachable_hud_item
 	MotionID m_active_hand_motion;
 	CBlend* m_active_hand_blend;
 	u32 m_active_hand_generation;
+
+	// Secondary-motion ("jiggle") bone physics for this item's own moving parts (bipod legs, carry
+	// handles...), opt-in via the item's own .ltx "jiggle_bones" key. No-op (and costs nothing) for any
+	// item that doesn't declare one.
+	CGunPartJiggleController m_jiggle;
 
 	attachable_hud_item(player_hud* pparent) : m_parent(pparent), m_upd_firedeps_frame(u32(-1)), m_parent_hud_item(nullptr),
 		m_model(nullptr), m_attach_place_idx(0), m_active_hand_blend(nullptr), m_active_hand_generation(0) {

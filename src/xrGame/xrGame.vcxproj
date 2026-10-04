@@ -2068,6 +2068,7 @@
     <ClInclude Include="WeaponVal.h" />
     <ClInclude Include="WeaponVintorez.h" />
     <ClInclude Include="WeaponWalther.h" />
+    <ClInclude Include="weapon_part_jiggle.h" />
     <ClInclude Include="Wound.h" />
     <ClInclude Include="wrapper_abstract.h" />
     <ClInclude Include="wrapper_abstract_inline.h" />
@@ -4416,6 +4417,7 @@
     </ClCompile>
     <ClCompile Include="weapon_ammo_dump_impl.cpp" />
     <ClCompile Include="weapon_dump_impl.cpp" />
+    <ClCompile Include="weapon_part_jiggle.cpp" />
     <ClCompile Include="Wound.cpp" />
     <ClCompile Include="xrClientsPool.cpp" />
     <ClCompile Include="xrGame.cpp" />

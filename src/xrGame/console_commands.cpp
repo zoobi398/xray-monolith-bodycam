@@ -281,7 +281,10 @@ extern CrosshairSettings g_crosshair_device_far;
 
 extern BOOL g_decouple_horz_recoil;
 extern BOOL g_insurgency_recoil_debug_log;
+extern BOOL g_near_fade_debug_log;
 extern BOOL g_use_non_linear_inertia;
+extern BOOL g_gunjiggle_enabled;
+extern BOOL g_gunjiggle_debug;
 
 extern float recon_show_speed;
 extern float recon_hide_speed;
@@ -2970,6 +2973,9 @@ void CCC_RegisterCommands()
 
 	CMD4(CCC_Integer, "g_decouple_horz_recoil", &g_decouple_horz_recoil, 0, 1);
 	CMD4(CCC_Integer, "g_insurgency_recoil_debug_log", &g_insurgency_recoil_debug_log, 0, 1);
+	CMD4(CCC_Integer, "g_near_fade_debug_log", &g_near_fade_debug_log, 0, 1);
+	CMD4(CCC_Integer, "g_gunjiggle_enabled", &g_gunjiggle_enabled, 0, 1);
+	CMD4(CCC_Integer, "g_gunjiggle_debug", &g_gunjiggle_debug, 0, 1);
 	CMD4(CCC_Integer, "g_launcher_dynamic_range_zoom", &g_launcher_dynamic_range_zoom, 0, 1);
 	CMD4(CCC_Integer, "g_use_non_linear_inertia", &g_use_non_linear_inertia, 0, 1);
 

@@ -1,0 +1,52 @@
+--- Feeds snd_occlusion_indoor_factor (0 = outdoor occlusion values, 1 = indoor values) from the actor's
+--- Spatial Audio Rework indoor score. The engine ignores the factor unless snd_occlusion_indoor_mode is 1,
+--- and with SAR missing the factor stays 0 (= behaviour identical to before this script existed).
+--- See docs/ENGINE_CHANGES_SOUND_OCCLUSION_PHASE1_2.md (Update 02/10).
+
+local POLL_MS = 250
+local MIN_STEP = 0.02 -- only talk to the engine when the factor moved by at least this much
+
+local last_poll = 0
+local last_sent = -1
+
+-- SAR's own enter/exit thresholds (same defaults the TRUE_CYCLIC scripts fall back to); the factor ramps
+-- linearly between them, so it is continuous instead of a hard switch.
+local function thresholds()
+    local lo, hi = 0.4, 0.75
+    if sar_main and sar_main.mcm_settings then
+        local m = sar_main.mcm_settings
+        if m.lower_threshold and m.lower_threshold[1] then lo = m.lower_threshold[1] end
+        if m.upper_threshold and m.upper_threshold[1] then hi = m.upper_threshold[1] end
+    end
+    if hi <= lo then hi = lo + 0.01 end
+    return lo, hi
+end
+
+local function compute_factor()
+    if not (sar_main and sar_main.current_score) then return 0 end
+    local lo, hi = thresholds()
+    local f = (sar_main.current_score - lo) / (hi - lo)
+    if f < 0 then f = 0 elseif f > 1 then f = 1 end
+    return f
+end
+
+local function push(f)
+    last_sent = f
+    exec_console_cmd(string.format("snd_occlusion_indoor_factor %.3f", f))
+end
+
+function actor_on_update()
+    local now = time_global()
+    if now - last_poll < POLL_MS then return end
+    last_poll = now
+
+    local f = compute_factor()
+    -- always let the endpoints through, so the factor reliably returns to exactly 0 / 1
+    if last_sent < 0 or math.abs(f - last_sent) >= MIN_STEP or (f ~= last_sent and (f == 0 or f == 1)) then
+        push(f)
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_update", actor_on_update)
+end

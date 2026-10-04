@@ -23,6 +23,11 @@ int psSoundOcclusionBudget = 12;
 int psSoundOcclusionDiffraction = 1;
 int psSoundOcclusionDebug = 0;
 float psSoundOcclusionWetSensitivity = 0.35f;
+int psSoundOcclusionIndoorMode = 0;
+float psSoundOcclusionIndoorFactor = 0.f;
+float psSoundOcclusionIndoorStrength = 1.f;
+float psSoundOcclusionIndoorMaxLoss = 24.f;
+float psSoundOcclusionIndoorMaxHfLoss = 36.f;
 int psSoundDuckMode = 0;
 // 0.55 ~= -7dB at full loudness_weight (1.0): the middle of the 6-8dB range Phase 0's own measured
 // baseline suggests the OLD occlusion system was quasi-permanently applying in cluttered indoor scenes

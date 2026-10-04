@@ -58,6 +58,18 @@ XRSOUND_API extern int psSoundOcclusionDebug;        // snd_occlusion_debug: 0 o
 // where ducking behind cover chokes the reverb send exactly as hard as the direct sound.
 XRSOUND_API extern float psSoundOcclusionWetSensitivity;
 
+// Indoor occlusion set (02/10). Not a second material table: only the global strength and the two hard
+// caps differ between outdoor and indoor, interpolated by psSoundOcclusionIndoorFactor (0 = outdoor
+// values, 1 = indoor values). The factor is pushed by gamedata/scripts/sound_occlusion_indoor.script from
+// the actor's Spatial Audio Rework indoor score; with psSoundOcclusionIndoorMode 0 (default) the factor is
+// ignored and behaviour is identical to before this existed. Outdoor values are snd_occlusion_strength
+// and sound_occlusion.ltx's [sound_occlusion_limits].
+XRSOUND_API extern int psSoundOcclusionIndoorMode;        // snd_occlusion_indoor_mode: 0/1
+XRSOUND_API extern float psSoundOcclusionIndoorFactor;    // snd_occlusion_indoor_factor: 0..1, script-driven
+XRSOUND_API extern float psSoundOcclusionIndoorStrength;  // snd_occlusion_indoor_strength
+XRSOUND_API extern float psSoundOcclusionIndoorMaxLoss;   // snd_occlusion_indoor_max_loss_db
+XRSOUND_API extern float psSoundOcclusionIndoorMaxHfLoss; // snd_occlusion_indoor_max_hf_loss_db
+
 // Actor-fire priority ducking (30/09, "snd_duck_mode"): a temporary gain reduction on NPC gunshot voices
 // while the actor's own weapon is firing, approximating auditory masking (a shot at your own ear dominates
 // simultaneous perception) instead of letting both compete for the same OpenAL Soft output-limiter

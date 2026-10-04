@@ -82,6 +82,9 @@ public:
 	// for the life of this voice (loop) or freezes it at the single stStarting/stStartingLooped result
 	// (one-shot) -- see the "Update (01/10)" note in update_culling.
 	bool occ_is_loop;
+	// One-shot voices only: true once occ_target_* hold the occlusion of the moment the shot happened
+	// (taken on the first update with a valid position, possibly while still in stStartingDelayed).
+	bool occ_snapshot_valid;
 
 	// Actor-fire priority ducking (30/09, "snd_duck_mode 1"). A separate multiplier, NOT folded into
 	// occluder_volume (which is occlusion's own smoothed state and must not be contaminated by an

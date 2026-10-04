@@ -584,6 +584,8 @@ void hud_item_measures::load(const shared_str& sect_name, IKinematics* K)
 
 attachable_hud_item::~attachable_hud_item()
 {
+	m_jiggle.remove();
+
 	if (m_model)
 	{
 		IRenderVisual* v = m_model->dcast_RenderVisual();
@@ -616,6 +618,8 @@ void attachable_hud_item::load(const shared_str& sect_name)
 	m_attach_place_idx = pSettings->r_u16(sect_name, "attach_place_idx");
 	m_measures.load(sect_name, m_model);
 	m_hand_motions = m_parent->get_hand_motions(*sect_name);
+
+	m_jiggle.install(this, sect_name);
 }
 
 player_hud_motion* attachable_hud_item::find_motion(const shared_str& anm_name)

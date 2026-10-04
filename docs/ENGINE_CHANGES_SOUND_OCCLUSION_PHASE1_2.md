@@ -499,6 +499,56 @@ voice -- only one-shot voices (the overwhelming majority of what occlusion actua
 gunshot, footstep, impact) change, from "re-evaluated live for their whole playback" to "evaluated once,
 correctly, at the moment they were emitted".
 
+## Update (02/10) -- the one-shot snapshot was taken at voice start, not at shot time
+
+The 01/10 freeze-at-emission fix didn't fully cure "I duck behind cover while the NPC shot's tail is still
+playing and the tail gets occluded". Cause: the snapshot was taken at `stStarting`, i.e. when the *voice*
+starts -- and many NPC gunshot voices start later than the shot itself: layers with a `.ltx` delay
+(typically the tails) and the distance-based propagation delay in `update()` (>50m, up to 3.5s). Those
+sit in `stStartingDelayed` meanwhile, so hiding during the wait baked "behind cover" into the voice.
+
+Fix: new `occ_snapshot_valid` (`SoundRender_Emitter.h`, reset in ctor/`start()`). `update()` now takes the
+occlusion snapshot on the first update with a valid, non-origin position for any non-looped, non-ambient
+3D voice in a pre-playing state (including the delayed ones) and stores it in `occ_target_*`;
+`stStarting` reuses it, evaluating itself only as a fallback. Looped voices unchanged. Cost is unchanged
+(still one `get_occlusion_ex` per one-shot voice, just earlier). Deliberate choice: this also snapshots
+across the propagation delay, which is arguably the *less* physical option (a wave that arrives after you
+hid really is occluded) -- chosen because the stated goal is that nothing the player does after the shot
+should re-shape that shot's sound.
+
+## Update (02/10) -- indoor occlusion values (`snd_occlusion_indoor_mode`)
+
+Motivation (from a real session log, 2270 voices): at `strength` 0.3 the effective cap was 12 x 0.3 =
+3.6dB (strength is applied AFTER the cap), 24% of voices sat on it, almost all at 50-200m, and diffraction
+(only tried above 6dB) never ran. Analytically, with `loss_db` + `loss_db_per_m` and a 12dB cap a single
+masonry wall saturates at 3.5m thickness (metal 4m, wood 9m), so 5m and 15m of wall are indistinguishable;
+`hf_loss_db` has no per-metre term at all (flat per surface, 36dB cap fills in ~3 surfaces). One set of
+limits cannot be right for both forest clutter (many thin hits) and thick-walled corridors.
+
+What changed:
+- Only the limits differ, not the material table: `strength`, `max_loss_db`, `max_hf_loss_db` are each
+  interpolated between their outdoor value (`snd_occlusion_strength`, `sound_occlusion.ltx`) and an indoor
+  value by `snd_occlusion_indoor_factor` (0..1). New cvars: `snd_occlusion_indoor_mode` (0 = factor ignored,
+  default, byte-identical to before), `_indoor_factor`, `_indoor_strength` (default 1.0),
+  `_indoor_max_loss_db` (default 24), `_indoor_max_hf_loss_db` (default 36). Indoor caps are live cvars,
+  not .ltx keys (outdoor ones stay in the .ltx), so they can be tuned without a level reload. MCM page
+  gained the toggle and three sliders.
+- `gamedata/scripts/sound_occlusion_indoor.script` pushes the factor: polls `sar_main.current_score` every
+  250ms, maps it linearly between SAR's own lower/upper thresholds (0.4/0.75 fallback), and sends the
+  console command only when it moved by >= 0.02 (endpoints always sent). SAR missing => factor stays 0.
+  Verified in `sar_main.script`: SAR measures every 750ms and eases `current_score` toward its target, so
+  250ms polling only samples an already-smooth value.
+- Which score: the ACTOR's. SAR's per-NPC `isIndoor` (sar_snd_replacer.script) casts its rays from
+  `getCharPos()` which defaults to the actor, with directions rotated by the NPC's heading -- noisy
+  per-NPC and not about the NPC's surroundings. Source-indoor/listener-outdoor is therefore the weak
+  combination; the `masonry` class (building walls) is what covers it.
+- Debug log lines gained `raw=` (mean pre-cap, pre-strength material sum -- how far past the cap the
+  geometry really goes) and `ind=` (indoor factor in effect). Use these to check how often each scene
+  saturates.
+
+Suggested test: `snd_occlusion_strength` back to 1.0, `snd_occlusion_indoor_mode 1`, compare `raw=` and
+cap-hit rate in Red Forest vs Jupiter corridors.
+
 ## Known limitations / possible follow-ups
 
 - **Diffraction candidate placement is still a fixed, hand-picked scheme** (5 wide + 12 near, see update

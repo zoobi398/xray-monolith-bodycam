@@ -5997,6 +5997,9 @@
     <ClInclude Include="player_hud.h">
       <Filter>Core\Client\Objects\items &amp; weapons\HudItem</Filter>
     </ClInclude>
+    <ClInclude Include="weapon_part_jiggle.h">
+      <Filter>Core\Client\Objects\items &amp; weapons\HudItem</Filter>
+    </ClInclude>
     <ClInclude Include="ExplosiveItem.h">
       <Filter>Core\Client\Objects\items &amp; weapons\Explosives</Filter>
     </ClInclude>
@@ -9633,6 +9636,9 @@
       <Filter>Core\Client\Objects\items &amp; weapons\HudItem</Filter>
     </ClCompile>
     <ClCompile Include="player_hud.cpp">
+      <Filter>Core\Client\Objects\items &amp; weapons\HudItem</Filter>
+    </ClCompile>
+    <ClCompile Include="weapon_part_jiggle.cpp">
       <Filter>Core\Client\Objects\items &amp; weapons\HudItem</Filter>
     </ClCompile>
     <ClCompile Include="player_hud_tune.cpp">

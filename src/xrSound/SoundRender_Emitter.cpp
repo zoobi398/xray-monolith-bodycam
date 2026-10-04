@@ -38,6 +38,7 @@ CSoundRender_Emitter::CSoundRender_Emitter(void)
 	occ_next_update = 0.f;
 	occ_profile = 0;
 	occ_is_loop = false;
+	occ_snapshot_valid = false;
 	duck_gain = 1.f;
 	fade_volume = 1.f;
 	fade_out_duration_s = 0.1f;
