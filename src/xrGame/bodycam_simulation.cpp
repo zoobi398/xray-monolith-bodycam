@@ -1002,6 +1002,12 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 	float ads_mouse_mult = 1.f;
 	float ads_impulse_mult = 1.f;
 	float recoil_ads_mult = 1.f;
+	// Per-weapon override of the vm_recoil_* sliders (insurgency_vm_* in .ltx); -- unset -> global slider.
+	auto pick_vm = [](float weapon_override, float global_value)
+	{
+		return weapon_override > kRecoilVmUseGlobal * 0.5f ? weapon_override : global_value;
+	};
+	const float vm_ads_scale = pick_vm(input.recoil_vm.ads_scale, settings.viewmodel.recoil_ads_mult);
 	if (state.ads_blend > kEpsilon)
 	{
 		const float ads_blend = Clamp(state.ads_blend, 0.f, 1.f);
@@ -1018,7 +1024,7 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		camera_pos = Lerp(settings.camera.hip.pos, settings.camera.ads.pos, ads_blend);
 		ads_mouse_mult = Lerp(1.f, settings.viewmodel.ads_mouse_mult, ads_blend);
 		ads_impulse_mult = Lerp(1.f, settings.viewmodel.ads_impulse_mult, ads_blend);
-		recoil_ads_mult = Lerp(1.f, settings.viewmodel.recoil_ads_mult, ads_blend);
+		recoil_ads_mult = Lerp(1.f, vm_ads_scale, ads_blend);
 	}
 
 	state.camera.yaw = SpringAngle(state.camera.yaw, CalcDesiredAngle(state.camera.yaw, input.target_yaw, deadzone_yaw, softzone_yaw, Clamp(inner_gain, 0.f, 1.f)), spring_freq, spring_damping, input.dt);
@@ -1115,13 +1121,17 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		// is near-pure camera movement with no viewmodel decoupling, and any decoupling here risks
 		// desyncing a PIP scope's tube/parallax rendering from the reticle. Hip fire keeps full effect
 		// (ads_blend == 0 -> recoil_ads_mult stays 1); ADS fades toward recoil_ads_mult as aim blends in.
+		const float vm_pos_scale_vert = pick_vm(input.recoil_vm.pos_scale_vert, settings.viewmodel.recoil_pos_scale_vert);
+		const float vm_pos_scale_horz = pick_vm(input.recoil_vm.pos_scale_horz, settings.viewmodel.recoil_pos_scale_horz);
+		const float vm_rot_scale_vert = pick_vm(input.recoil_vm.rot_scale_vert, settings.viewmodel.recoil_rot_scale_vert);
+		const float vm_rot_scale_horz = pick_vm(input.recoil_vm.rot_scale_horz, settings.viewmodel.recoil_rot_scale_horz);
 		SVec3 recoil_pos_target;
-		recoil_pos_target.Set(-input.recoil_yaw * settings.viewmodel.recoil_pos_scale_horz * 0.4f,
-			input.recoil_pitch * settings.viewmodel.recoil_pos_scale_vert, 0.f);
+		recoil_pos_target.Set(-input.recoil_yaw * vm_pos_scale_horz * 0.4f,
+			input.recoil_pitch * vm_pos_scale_vert, 0.f);
 		SVec3 recoil_rot_target;
-		recoil_rot_target.Set(input.recoil_pitch * settings.viewmodel.recoil_rot_scale_vert,
-			-input.recoil_yaw * settings.viewmodel.recoil_rot_scale_horz * 0.6f,
-			-input.recoil_yaw * settings.viewmodel.recoil_rot_scale_horz * 1.2f);
+		recoil_rot_target.Set(input.recoil_pitch * vm_rot_scale_vert,
+			-input.recoil_yaw * vm_rot_scale_horz * 0.6f,
+			-input.recoil_yaw * vm_rot_scale_horz * 1.2f);
 		recoil_pos_target.Mul(recoil_ads_mult);
 		recoil_rot_target.Mul(recoil_ads_mult);
 		// Vertical and horizontal axes follow at independent speeds (15/09) -- a slower horizontal
@@ -1132,11 +1142,11 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 		// and applied per-axis: recoil_pos.x (lateral) and recoil_rot.y/.z (yaw/roll) are horizontal-
 		// driven; recoil_pos.y (vertical) and recoil_rot.x (pitch) are vertical-driven.
 		const float clamped_dt = Clamp(input.dt, 0.f, 0.033f);
-		const float vert_response = std::max(settings.viewmodel.recoil_follow_speed_vert, 0.01f) *
-			std::max(settings.viewmodel.recoil_follow_damping_vert, 0.01f);
+		const float vert_response = std::max(pick_vm(input.recoil_vm.follow_speed_vert, settings.viewmodel.recoil_follow_speed_vert), 0.01f) *
+			std::max(pick_vm(input.recoil_vm.follow_damping_vert, settings.viewmodel.recoil_follow_damping_vert), 0.01f);
 		const float vert_factor = Clamp(1.f - std::exp(-vert_response * clamped_dt), 0.f, 1.f);
-		const float horz_response = std::max(settings.viewmodel.recoil_follow_speed_horz, 0.01f) *
-			std::max(settings.viewmodel.recoil_follow_damping_horz, 0.01f);
+		const float horz_response = std::max(pick_vm(input.recoil_vm.follow_speed_horz, settings.viewmodel.recoil_follow_speed_horz), 0.01f) *
+			std::max(pick_vm(input.recoil_vm.follow_damping_horz, settings.viewmodel.recoil_follow_damping_horz), 0.01f);
 		const float horz_factor = Clamp(1.f - std::exp(-horz_response * clamped_dt), 0.f, 1.f);
 		state.viewmodel.recoil_pos.x += (recoil_pos_target.x - state.viewmodel.recoil_pos.x) * horz_factor;
 		state.viewmodel.recoil_pos.y += (recoil_pos_target.y - state.viewmodel.recoil_pos.y) * vert_factor;
@@ -1172,8 +1182,8 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 			float pitch_rad = DegToRad(state.viewmodel.recoil_rot.x) * input.muzzle_pivot;
 			SVec3 pivot_correction;
 			pivot_correction.Set(0.f,
-				pitch_rad * settings.viewmodel.recoil_pivot_z,
-				-pitch_rad * settings.viewmodel.recoil_pivot_y);
+				pitch_rad * pick_vm(input.recoil_vm.pivot_z, settings.viewmodel.recoil_pivot_z),
+				-pitch_rad * pick_vm(input.recoil_vm.pivot_y, settings.viewmodel.recoil_pivot_y));
 			pivot_correction.Mul(recoil_ads_mult);
 			state.viewmodel.recoil_pos.Add(pivot_correction);
 			ClampVector(state.viewmodel.recoil_pos, std::max(settings.impulse.impulse_pos_cap, 0.f));

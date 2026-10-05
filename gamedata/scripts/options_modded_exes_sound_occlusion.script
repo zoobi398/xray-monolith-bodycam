@@ -23,8 +23,6 @@ PAGE = page {
     line {},
     list_bool { id = "snd_occlusion_indoor_mode", text = label("snd_occlusion_indoor_mode"), cmd = "snd_occlusion_indoor_mode" },
     track { id = "snd_occlusion_indoor_strength", text = label("snd_occlusion_indoor_strength"), def = 1.0, step = 0.05, cmd = "snd_occlusion_indoor_strength" },
-    track { id = "snd_occlusion_indoor_max_loss_db", text = label("snd_occlusion_indoor_max_loss_db"), def = 24, step = 1, cmd = "snd_occlusion_indoor_max_loss_db" },
-    track { id = "snd_occlusion_indoor_max_hf_loss_db", text = label("snd_occlusion_indoor_max_hf_loss_db"), def = 36, step = 1, cmd = "snd_occlusion_indoor_max_hf_loss_db" },
     line {},
     track { id = "snd_occlusion_debug", text = label("snd_occlusion_debug"), def = 0, step = 1, cmd = "snd_occlusion_debug" },
     list_bool { id = "snd_occlusion_stats", text = label("snd_occlusion_stats"), cmd = "snd_occlusion_stats" },

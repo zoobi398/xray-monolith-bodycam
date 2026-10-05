@@ -130,6 +130,22 @@ bool CActor::cam_BodycamVisualUpdate(const CCameraBase* camera, float dt, float 
 		input.recoil_pitch = Bodycam::RadToDeg(recoil_effector->GetOutputVert());
 		input.recoil_yaw = Bodycam::RadToDeg(recoil_effector->GetOutputHorz());
 		input.muzzle_pivot = recoil_effector->GetMuzzlePivot();
+		{
+			static_assert(CameraRecoil::kCamRecoilVmNone == Bodycam::kRecoilVmUseGlobal, "override sentinels must match");
+			// Same order as CameraRecoil::ECamRecoilVm; the "not set" sentinel is the same value on both sides.
+			Bodycam::RecoilViewmodelOverride& o = input.recoil_vm;
+			o.rot_scale_vert = recoil_effector->GetVmOverride(CameraRecoil::vmRotScaleVert);
+			o.rot_scale_horz = recoil_effector->GetVmOverride(CameraRecoil::vmRotScaleHorz);
+			o.pos_scale_vert = recoil_effector->GetVmOverride(CameraRecoil::vmPosScaleVert);
+			o.pos_scale_horz = recoil_effector->GetVmOverride(CameraRecoil::vmPosScaleHorz);
+			o.follow_speed_vert = recoil_effector->GetVmOverride(CameraRecoil::vmFollowSpeedVert);
+			o.follow_speed_horz = recoil_effector->GetVmOverride(CameraRecoil::vmFollowSpeedHorz);
+			o.follow_damping_vert = recoil_effector->GetVmOverride(CameraRecoil::vmFollowDampingVert);
+			o.follow_damping_horz = recoil_effector->GetVmOverride(CameraRecoil::vmFollowDampingHorz);
+			o.ads_scale = recoil_effector->GetVmOverride(CameraRecoil::vmAdsScale);
+			o.pivot_y = recoil_effector->GetVmOverride(CameraRecoil::vmPivotY);
+			o.pivot_z = recoil_effector->GetVmOverride(CameraRecoil::vmPivotZ);
+		}
 		input.yaw_center_pull = recoil_effector->GetYawCenterPull();
 	}
 

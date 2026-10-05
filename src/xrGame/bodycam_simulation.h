@@ -253,6 +253,26 @@ struct RecoilDecompOverride
 	float ads_scale = kDecompUseGlobal;
 };
 
+// Per-weapon override (05/10) for the 11 viewmodel recoil-follow / muzzle-pivot-anchor sliders (vm_recoil_*
+// in the Bodycam Weapon Recoil tab; insurgency_vm_* in .ltx, carried by CameraRecoil::VmOverride).
+// A field equal to kRecoilVmUseGlobal means "not set, use the global slider". Not -1 like the decomp
+// override above: recoil_pivot_y is legitimately negative. Absolute values in the sliders' own units.
+constexpr float kRecoilVmUseGlobal = -1.0e9f;
+struct RecoilViewmodelOverride
+{
+	float rot_scale_vert = kRecoilVmUseGlobal;
+	float rot_scale_horz = kRecoilVmUseGlobal;
+	float pos_scale_vert = kRecoilVmUseGlobal;
+	float pos_scale_horz = kRecoilVmUseGlobal;
+	float follow_speed_vert = kRecoilVmUseGlobal;
+	float follow_speed_horz = kRecoilVmUseGlobal;
+	float follow_damping_vert = kRecoilVmUseGlobal;
+	float follow_damping_horz = kRecoilVmUseGlobal;
+	float ads_scale = kRecoilVmUseGlobal;
+	float pivot_y = kRecoilVmUseGlobal;
+	float pivot_z = kRecoilVmUseGlobal;
+};
+
 struct SimulationSprintSettings
 {
 	float strength = 1.5f;
@@ -361,6 +381,7 @@ struct SimulationInput
 	float recoil_pitch = 0.f;
 	float recoil_yaw = 0.f;
 	float muzzle_pivot = 0.f; // CameraRecoil::MuzzlePivot of the active weapon; 0 for non-InsurgencyRecoil weapons
+	RecoilViewmodelOverride recoil_vm; // active weapon's per-weapon overrides of the vm_recoil_* sliders
 	float yaw_center_pull = 0.f; // CameraRecoil::YawCenterPull; also applied to this channel's own spring
 	                             // state (recoil_pos.x, recoil_rot.y/.z), not just m_angle_horz upstream --
 	                             // the spring's own lag otherwise keeps visibly leaning one way for a while

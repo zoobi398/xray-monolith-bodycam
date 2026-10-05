@@ -90,6 +90,8 @@ public:
 	float m_occ_max_loss_db = 28.f;
 	float m_occ_max_hf_loss_db = 36.f;
 	float m_occ_max_thickness_m = 12.f;
+	float m_occ_max_loss_db_indoor = 28.f;    // same as outdoor unless sound_occlusion.ltx says otherwise
+	float m_occ_max_hf_loss_db_indoor = 36.f;
 
 	// Per-frame full-evaluation budget (snd_occlusion_budget) -- reset in update(), consumed by
 	// get_occlusion_ex callers via occ_budget_take(). Shot starts (stStarting/stStartingLooped) bypass
@@ -119,7 +121,8 @@ public:
 	};
 
 	virtual void set_occlusion_materials(const SSoundOcclusionMaterial* table, u32 count) override;
-	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m) override;
+	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m,
+		float max_loss_db_indoor, float max_hf_loss_db_indoor) override;
 
 	// Actor-fire priority ducking (30/09). fTimer_Value timestamp of the actor's last weapon shot -- far
 	// in the past initially so nothing is "ducked" before the first shot ever fires. Read directly by

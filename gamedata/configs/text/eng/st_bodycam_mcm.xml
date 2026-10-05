@@ -100,8 +100,6 @@
     <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_wet_sensitivity"><text>Reverb Send Sensitivity to Occlusion, 0=Unaffected (snd_occlusion_wet_sensitivity)</text></string>
     <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_indoor_mode"><text>Use Separate Indoor Occlusion Values, Driven by SAR Indoor Score (snd_occlusion_indoor_mode)</text></string>
     <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_indoor_strength"><text>Indoor Occlusion Strength (snd_occlusion_indoor_strength)</text></string>
-    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_indoor_max_loss_db"><text>Indoor Max Volume Loss, dB (snd_occlusion_indoor_max_loss_db)</text></string>
-    <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_indoor_max_hf_loss_db"><text>Indoor Max Treble Loss, dB (snd_occlusion_indoor_max_hf_loss_db)</text></string>
     <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_debug"><text>Debug Log Level, 0-2 (snd_occlusion_debug)</text></string>
     <string id="ui_mm_modded_exes_gameplay_sound_occlusion_snd_occlusion_stats"><text>Log Performance Stats (snd_occlusion_stats)</text></string>
 

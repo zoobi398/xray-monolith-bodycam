@@ -784,6 +784,15 @@ void CWeapon::ForceUpdateFireParticles()
 	}
 }
 
+// Names (after "insurgency_vm_" / "zoom_insurgency_vm_") of the per-weapon overrides of the 11 Bodycam
+// Weapon Recoil sliders (05/10). Same order as CameraRecoil::ECamRecoilVm; absolute values, in the
+// slider's own units. Absent key = inherit the global slider.
+static const char* const kCamRecoilVmKeys[CameraRecoil::vmCount] = {
+	"rotation_scale_vert", "rotation_scale_horz", "position_scale_vert", "position_scale_horz",
+	"follow_speed_vert", "follow_speed_horz", "follow_damping_vert", "follow_damping_horz",
+	"ads_scale", "pivot_y", "pivot_z"
+};
+
 void CWeapon::Load(LPCSTR section)
 {
 	inherited::Load(section);
@@ -878,6 +887,13 @@ void CWeapon::Load(LPCSTR section)
 	cam_recoil.DecompPitchScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_pitch_scale", -1.0f);
 	cam_recoil.DecompHorizontalScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_horizontal_scale", -1.0f);
 	cam_recoil.DecompAdsScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_ads_scale", -1.0f);
+	for (int vm_i = 0; vm_i < CameraRecoil::vmCount; ++vm_i)
+	{
+		string128 vm_key;
+		xr_sprintf(vm_key, "insurgency_vm_%s", kCamRecoilVmKeys[vm_i]);
+		if (pSettings->line_exist(section, vm_key))
+			cam_recoil.VmOverride[vm_i] = pSettings->r_float(section, vm_key);
+	}
 	m_altAimLeanCoupling = !!READ_IF_EXISTS(pSettings, r_bool, section, "insurgency_alt_aim_lean", FALSE);
 
 	m_bodycamSwayEnable = !!READ_IF_EXISTS(pSettings, r_bool, section, "bodycam_sway_enable", FALSE);
@@ -915,6 +931,8 @@ void CWeapon::Load(LPCSTR section)
 	zoom_cam_recoil.DecompPitchScale = cam_recoil.DecompPitchScale;
 	zoom_cam_recoil.DecompHorizontalScale = cam_recoil.DecompHorizontalScale;
 	zoom_cam_recoil.DecompAdsScale = cam_recoil.DecompAdsScale;
+	for (int vm_i = 0; vm_i < CameraRecoil::vmCount; ++vm_i)
+		zoom_cam_recoil.VmOverride[vm_i] = cam_recoil.VmOverride[vm_i];
 
 	if (pSettings->line_exist(section, "zoom_cam_relax_speed"))
 	{
@@ -983,6 +1001,13 @@ void CWeapon::Load(LPCSTR section)
 	if (pSettings->line_exist(section, "zoom_insurgency_decomp_scale"))
 	{
 		zoom_cam_recoil.DecompScale = pSettings->r_float(section, "zoom_insurgency_decomp_scale");
+	}
+	for (int vm_i = 0; vm_i < CameraRecoil::vmCount; ++vm_i)
+	{
+		string128 vm_key;
+		xr_sprintf(vm_key, "zoom_insurgency_vm_%s", kCamRecoilVmKeys[vm_i]);
+		if (pSettings->line_exist(section, vm_key))
+			zoom_cam_recoil.VmOverride[vm_i] = pSettings->r_float(section, vm_key);
 	}
 
 	m_pdm.m_fPDM_disp_base = pSettings->r_float(section, "PDM_disp_base");

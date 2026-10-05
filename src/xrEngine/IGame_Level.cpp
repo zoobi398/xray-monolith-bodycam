@@ -102,6 +102,7 @@ static void BuildAndPushOcclusionMaterials()
 	default_mat.ignore = false;
 
 	float max_loss_db = 28.f, max_hf_loss_db = 36.f, max_thickness_m = 12.f;
+	float max_loss_db_indoor = -1.f, max_hf_loss_db_indoor = -1.f; // -1 = not given -> same as outdoor
 
 	string_path fname;
 	CInifile* ini = FS.exist(fname, "$game_config$", "sound_occlusion.ltx") ? xr_new<CInifile>(fname, TRUE) : nullptr;
@@ -114,6 +115,8 @@ static void BuildAndPushOcclusionMaterials()
 			if (ini->line_exist(sec, "max_loss_db")) max_loss_db = ini->r_float(sec, "max_loss_db");
 			if (ini->line_exist(sec, "max_hf_loss_db")) max_hf_loss_db = ini->r_float(sec, "max_hf_loss_db");
 			if (ini->line_exist(sec, "max_thickness_m")) max_thickness_m = ini->r_float(sec, "max_thickness_m");
+			if (ini->line_exist(sec, "max_loss_db_indoor")) max_loss_db_indoor = ini->r_float(sec, "max_loss_db_indoor");
+			if (ini->line_exist(sec, "max_hf_loss_db_indoor")) max_hf_loss_db_indoor = ini->r_float(sec, "max_hf_loss_db_indoor");
 		}
 		if (ini->section_exist("default"))
 		{
@@ -179,7 +182,9 @@ static void BuildAndPushOcclusionMaterials()
 	}
 
 	Sound->set_occlusion_materials(&table.front(), (u32)table.size());
-	Sound->set_occlusion_limits(max_loss_db, max_hf_loss_db, max_thickness_m);
+	if (max_loss_db_indoor < 0.f) max_loss_db_indoor = max_loss_db;
+	if (max_hf_loss_db_indoor < 0.f) max_hf_loss_db_indoor = max_hf_loss_db;
+	Sound->set_occlusion_limits(max_loss_db, max_hf_loss_db, max_thickness_m, max_loss_db_indoor, max_hf_loss_db_indoor);
 
 	xr_delete(ini);
 }

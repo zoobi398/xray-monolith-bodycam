@@ -26,6 +26,7 @@ struct UpdateInput
 	float recoil_pitch = 0.f;
 	float recoil_yaw = 0.f;
 	float muzzle_pivot = 0.f;
+	RecoilViewmodelOverride recoil_vm;
 	float yaw_center_pull = 0.f;
 
 	bool sway_enabled = false;

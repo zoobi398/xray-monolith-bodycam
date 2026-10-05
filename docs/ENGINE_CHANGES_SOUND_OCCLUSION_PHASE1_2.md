@@ -527,12 +527,14 @@ limits cannot be right for both forest clutter (many thin hits) and thick-walled
 
 What changed:
 - Only the limits differ, not the material table: `strength`, `max_loss_db`, `max_hf_loss_db` are each
-  interpolated between their outdoor value (`snd_occlusion_strength`, `sound_occlusion.ltx`) and an indoor
-  value by `snd_occlusion_indoor_factor` (0..1). New cvars: `snd_occlusion_indoor_mode` (0 = factor ignored,
-  default, byte-identical to before), `_indoor_factor`, `_indoor_strength` (default 1.0),
-  `_indoor_max_loss_db` (default 24), `_indoor_max_hf_loss_db` (default 36). Indoor caps are live cvars,
-  not .ltx keys (outdoor ones stay in the .ltx), so they can be tuned without a level reload. MCM page
-  gained the toggle and three sliders.
+  interpolated between their outdoor and indoor value by `snd_occlusion_indoor_factor` (0..1).
+  **Rule of where things live (settled the same day, after a first version that mixed them):**
+  `sound_occlusion.ltx` = acoustic data (materials + caps, outdoor AND indoor: `max_loss_db_indoor`,
+  `max_hf_loss_db_indoor` in `[sound_occlusion_limits]`, default to the outdoor caps when absent, read once
+  per level load); menu/console = behaviour (`snd_occlusion_strength`, `snd_occlusion_indoor_strength`
+  default 1.0, `snd_occlusion_indoor_mode` 0 = factor ignored / byte-identical to before, plus the
+  existing cadence/budget/diffraction/wet cvars; `snd_occlusion_indoor_factor` is script-driven).
+  `set_occlusion_limits` gained the two indoor caps. MCM page gained the toggle and the indoor strength.
 - `gamedata/scripts/sound_occlusion_indoor.script` pushes the factor: polls `sar_main.current_score` every
   250ms, maps it linearly between SAR's own lower/upper thresholds (0.4/0.75 fallback), and sends the
   console command only when it moved by >= 0.02 (endpoints always sent). SAR missing => factor stays 0.

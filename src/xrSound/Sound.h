@@ -62,13 +62,12 @@ XRSOUND_API extern float psSoundOcclusionWetSensitivity;
 // caps differ between outdoor and indoor, interpolated by psSoundOcclusionIndoorFactor (0 = outdoor
 // values, 1 = indoor values). The factor is pushed by gamedata/scripts/sound_occlusion_indoor.script from
 // the actor's Spatial Audio Rework indoor score; with psSoundOcclusionIndoorMode 0 (default) the factor is
-// ignored and behaviour is identical to before this existed. Outdoor values are snd_occlusion_strength
-// and sound_occlusion.ltx's [sound_occlusion_limits].
+// ignored and behaviour is identical to before this existed. Split of responsibilities: the caps (outdoor
+// AND indoor) are acoustic data in sound_occlusion.ltx [sound_occlusion_limits]; strength (outdoor
+// snd_occlusion_strength, indoor snd_occlusion_indoor_strength) and the mode switch are menu/console.
 XRSOUND_API extern int psSoundOcclusionIndoorMode;        // snd_occlusion_indoor_mode: 0/1
 XRSOUND_API extern float psSoundOcclusionIndoorFactor;    // snd_occlusion_indoor_factor: 0..1, script-driven
 XRSOUND_API extern float psSoundOcclusionIndoorStrength;  // snd_occlusion_indoor_strength
-XRSOUND_API extern float psSoundOcclusionIndoorMaxLoss;   // snd_occlusion_indoor_max_loss_db
-XRSOUND_API extern float psSoundOcclusionIndoorMaxHfLoss; // snd_occlusion_indoor_max_hf_loss_db
 
 // Actor-fire priority ducking (30/09, "snd_duck_mode"): a temporary gain reduction on NPC gunshot voices
 // while the actor's own weapon is firing, approximating auditory masking (a shot at your own ear dominates
@@ -503,7 +502,8 @@ public:
 	// once per level load from GameMtlLib + sound_occlusion.ltx (xrEngine side, which already depends on
 	// GMLib) and handed to xrSound as a flat table, so xrSound itself never needs to depend on GMLib.
 	virtual void set_occlusion_materials(const SSoundOcclusionMaterial* table, u32 count) = 0;
-	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m) = 0;
+	virtual void set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m,
+		float max_loss_db_indoor, float max_hf_loss_db_indoor) = 0;
 
 	// Actor-fire priority ducking (30/09). Called once from CActor::on_weapon_shot_start() -- the sound
 	// side records the timestamp on its own clock and derives the duck envelope from elapsed time, so no

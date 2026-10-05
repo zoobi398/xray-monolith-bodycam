@@ -1173,8 +1173,6 @@ void CCC_Register()
     CMD4(CCC_Integer, "snd_occlusion_indoor_mode", &psSoundOcclusionIndoorMode, 0, 1);
     CMD4(CCC_Float, "snd_occlusion_indoor_factor", &psSoundOcclusionIndoorFactor, 0.f, 1.f);
     CMD4(CCC_Float, "snd_occlusion_indoor_strength", &psSoundOcclusionIndoorStrength, 0.f, 2.f);
-    CMD4(CCC_Float, "snd_occlusion_indoor_max_loss_db", &psSoundOcclusionIndoorMaxLoss, 1.f, 60.f);
-    CMD4(CCC_Float, "snd_occlusion_indoor_max_hf_loss_db", &psSoundOcclusionIndoorMaxHfLoss, 1.f, 80.f);
 
     CMD4(CCC_Integer, "snd_duck_mode", &psSoundDuckMode, 0, 1);
     CMD4(CCC_Float, "snd_duck_strength", &psSoundDuckStrength, 0.f, 1.f);

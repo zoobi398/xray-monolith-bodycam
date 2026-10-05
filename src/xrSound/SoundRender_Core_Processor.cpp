@@ -419,8 +419,11 @@ void CSoundRender_Core::set_occlusion_materials(const SSoundOcclusionMaterial* t
 	m_occ_materials.assign(table, table + count);
 }
 
-void CSoundRender_Core::set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m)
+void CSoundRender_Core::set_occlusion_limits(float max_loss_db, float max_hf_loss_db, float max_thickness_m,
+	float max_loss_db_indoor, float max_hf_loss_db_indoor)
 {
+	m_occ_max_loss_db_indoor = _max(max_loss_db_indoor, 0.f);
+	m_occ_max_hf_loss_db_indoor = _max(max_hf_loss_db_indoor, 0.f);
 	m_occ_max_loss_db = _max(max_loss_db, 0.f);
 	m_occ_max_hf_loss_db = _max(max_hf_loss_db, 0.f);
 	m_occ_max_thickness_m = _max(max_thickness_m, 0.f);
@@ -481,10 +484,10 @@ void CSoundRender_Core::occ_trace_losses(const Fvector& from, const Fvector& to,
 		}
 	}
 
-	// Caps interpolate between the outdoor values (sound_occlusion.ltx) and the indoor cvars (02/10).
+	// Caps interpolate between the outdoor and indoor values, both from sound_occlusion.ltx (02/10).
 	const float f = occ_indoor_f();
-	const float cap_loss = m_occ_max_loss_db + (psSoundOcclusionIndoorMaxLoss - m_occ_max_loss_db) * f;
-	const float cap_hf = m_occ_max_hf_loss_db + (psSoundOcclusionIndoorMaxHfLoss - m_occ_max_hf_loss_db) * f;
+	const float cap_loss = m_occ_max_loss_db + (m_occ_max_loss_db_indoor - m_occ_max_loss_db) * f;
+	const float cap_hf = m_occ_max_hf_loss_db + (m_occ_max_hf_loss_db_indoor - m_occ_max_hf_loss_db) * f;
 
 	if (out_raw_loss_db)
 		*out_raw_loss_db = out_loss_db; // pre-cap sum, for the debug log: how far past the cap this ray would go

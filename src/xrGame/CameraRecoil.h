@@ -55,6 +55,21 @@ struct CameraRecoil
 	// Set any subset of these on a weapon to shape ITS decompensation independently of every other
 	// InsurgencyRecoil weapon, instead of the one shared global feel. See Bodycam::RecoilDecompOverride
 	// (bodycam_simulation.h) for where these actually get resolved/applied.
+	// Per-weapon overrides (05/10) for the 11 global "Recoil Follow" / "Muzzle Pivot Anchor" sliders in the
+	// Bodycam Weapon Recoil tab (insurgency_vm_<name> / zoom_insurgency_vm_<name> in .ltx, <name> being
+	// the entries of kCamRecoilVmKeys in Weapon.cpp, same order as ECamRecoilVm). A slot equal to
+	// kCamRecoilVmNone means "not set, inherit the global slider"; NOT -1 like the decomp overrides,
+	// because pivot_y legitimately goes negative. Absolute values, in the sliders' own units.
+	enum ECamRecoilVm
+	{
+		vmRotScaleVert = 0, vmRotScaleHorz, vmPosScaleVert, vmPosScaleHorz,
+		vmFollowSpeedVert, vmFollowSpeedHorz, vmFollowDampingVert, vmFollowDampingHorz,
+		vmAdsScale, vmPivotY, vmPivotZ,
+		vmCount
+	};
+	static constexpr float kCamRecoilVmNone = -1.0e9f;
+	float VmOverride[vmCount];
+
 	float DecompImpulse;
 	float DecompVerticalScale;
 	float DecompForwardScale;
@@ -88,6 +103,8 @@ struct CameraRecoil
 		DecompHorizontalScale(-1.0f),
 		DecompAdsScale(-1.0f)
 	{
+		for (int i = 0; i < vmCount; ++i)
+			VmOverride[i] = kCamRecoilVmNone;
 	};
 
 	CameraRecoil(const CameraRecoil& clone) { Clone(clone); }
@@ -121,6 +138,8 @@ struct CameraRecoil
 		DecompPitchScale = clone.DecompPitchScale;
 		DecompHorizontalScale = clone.DecompHorizontalScale;
 		DecompAdsScale = clone.DecompAdsScale;
+		for (int i = 0; i < vmCount; ++i)
+			VmOverride[i] = clone.VmOverride[i];
 
 		VERIFY(!fis_zero(RelaxSpeed));
 		VERIFY(!fis_zero(RelaxSpeed_AI));

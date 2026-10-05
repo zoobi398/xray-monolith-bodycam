@@ -98,6 +98,7 @@ public:
 	IC float GetDecompPitchScale() const { return m_cam_recoil.DecompPitchScale; }
 	IC float GetDecompHorizontalScale() const { return m_cam_recoil.DecompHorizontalScale; }
 	IC float GetDecompAdsScale() const { return m_cam_recoil.DecompAdsScale; }
+	IC float GetVmOverride(int i) const { return m_cam_recoil.VmOverride[i]; }
 
 	// 0-based index of the last shot fired (weapon->ShotsFired() - 1, i.e. WeaponMagazined::m_iShotNum
 	// - 1) -- set every Shot() call, NOT cleared by StopShoting(), so it still holds the just-ended

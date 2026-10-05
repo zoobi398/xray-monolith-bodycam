@@ -841,6 +841,40 @@ weapon (AK) feeling identical before/after.
   `insurgency_yaw_rho`/`insurgency_lean_coupling` as "system exists, values are a starting point" rather
   than validated constants.
 
+## Update (05/10) -- per-weapon overrides for the 11 "Recoil Follow" / "Muzzle Pivot Anchor" sliders
+
+All 11 sliders of the Bodycam Weapon Recoil tab (`vm_recoil_*`) were global-only. Each can now be overridden
+per weapon, hip and ADS, in absolute values (the slider's own units); the sliders stay the defaults.
+
+New .ltx keys (`insurgency_vm_<name>` for hip, `zoom_insurgency_vm_<name>` for ADS; an absent key inherits
+the global slider, and a zoom key absent inherits the weapon's hip value):
+
+| `<name>` | Slider it overrides | Slider range |
+|---|---|---|
+| `rotation_scale_vert` | Recoil Follow Rotation Scale - Vertical | 0 .. 2 |
+| `rotation_scale_horz` | Recoil Follow Rotation Scale - Horizontal | 0 .. 2 |
+| `position_scale_vert` | Recoil Follow Position Scale - Vertical | 0 .. 0.01 |
+| `position_scale_horz` | Recoil Follow Position Scale - Horizontal | 0 .. 0.01 |
+| `follow_speed_vert` | Recoil Follow Speed - Vertical | 0.1 .. 30 |
+| `follow_speed_horz` | Recoil Follow Speed - Horizontal | 0.1 .. 30 |
+| `follow_damping_vert` | Recoil Follow Damping - Vertical | 0 .. 3 |
+| `follow_damping_horz` | Recoil Follow Damping - Horizontal | 0 .. 3 |
+| `ads_scale` | Recoil Follow ADS Scale | 0 .. 1 |
+| `pivot_y` | Muzzle Pivot Anchor Y | -0.5 .. 0.5 |
+| `pivot_z` | Muzzle Pivot Anchor Z | -0.5 .. 0.5 |
+
+`insurgency_muzzle_pivot` is unchanged and stays a separate per-weapon multiplier on top of the pivot
+geometry (`pivot_y/pivot_z`, now itself overridable): geometry = where the anchor sits, `muzzle_pivot` =
+how much of it applies.
+
+Implementation: `CameraRecoil::VmOverride[vmCount]` (+ `ECamRecoilVm`, sentinel `kCamRecoilVmNone = -1e9`,
+not -1 because pivot_y is legitimately negative; copied in Clone and hip->zoom) -> read in
+`CWeapon::Load` from the `kCamRecoilVmKeys` table -> `CCameraShotEffector::GetVmOverride` ->
+`Bodycam::RecoilViewmodelOverride` in `UpdateInput`/`SimulationInput` (same sentinel, `static_assert`ed equal)
+-> `bodycam_simulation.cpp` resolves each value with `pick_vm(weapon_override, global)` at its 4 use sites
+(targets, follow responses, ADS blend, pivot correction). Values are not range-clamped by the .ltx path
+(the sliders' ranges above are the tested ones). Weapons without the keys behave exactly as before.
+
 ## Testing status
 
 Compiled clean (`DX11-AVX|x64`, `xrEngine` target, 0 errors, only pre-existing unrelated warnings).

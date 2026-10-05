@@ -74,3 +74,5 @@ ignore          = 0
 max_loss_db     = 28    ; hard cap on total loss along one ray -- never total silence from occlusion alone
 max_hf_loss_db  = 36
 max_thickness_m = 12    ; thickness between a matched entry+exit pair is never counted past this
+max_loss_db_indoor    = 24    ; same caps, used while snd_occlusion_indoor_mode is on and the SAR indoor score is high
+max_hf_loss_db_indoor = 36    ; blended with the two caps above by snd_occlusion_indoor_factor (0 outdoor .. 1 indoor)

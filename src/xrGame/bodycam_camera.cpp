@@ -168,6 +168,7 @@ void CBodycam::Update(const UpdateInput& input, VisualOutput& output)
 	sim_input.recoil_pitch = input.recoil_pitch;
 	sim_input.recoil_yaw = input.recoil_yaw;
 	sim_input.muzzle_pivot = input.muzzle_pivot;
+	sim_input.recoil_vm = input.recoil_vm;
 	sim_input.yaw_center_pull = input.yaw_center_pull;
 	sim_input.sway_enabled = input.sway_enabled;
 	sim_input.sway_amplitude_pos = input.sway_amplitude_pos;
