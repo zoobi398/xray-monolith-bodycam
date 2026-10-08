@@ -53,6 +53,7 @@ IGame_Level::~IGame_Level()
 	///////////////////////////////////////////
 	Sound->set_geometry_occ(NULL);
 	Sound->set_handler(NULL);
+	Sound->set_handler_raw(NULL);
 	Device.DumpResourcesMemoryUsage();
 
 	u32 m_base = 0, c_base = 0, m_lmaps = 0, c_lmaps = 0;
@@ -82,6 +83,11 @@ void IGame_Level::net_Stop()
 void __stdcall _sound_event(ref_sound_data_ptr S, float range)
 {
 	if (g_pGameLevel && S && S->feedback) g_pGameLevel->SoundEvent_Register(S, range);
+}
+
+void __stdcall _sound_event_raw(CObject* who, int type, const Fvector& pos, float max_ai_dist, float volume)
+{
+	if (g_pGameLevel) g_pGameLevel->SoundEvent_RegisterRaw(who, type, pos, max_ai_dist, volume);
 }
 
 static void __stdcall build_callback(Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt, void* params)
@@ -225,6 +231,7 @@ bool IGame_Level::Load(u32 dwNum)
 	Sound->set_geometry_occ(ObjectSpace.GetStaticModel());
 	BuildAndPushOcclusionMaterials();
 	Sound->set_handler(_sound_event);
+	Sound->set_handler_raw(_sound_event_raw);
 
 	pApp->LoadSwitch();
 
@@ -444,9 +451,56 @@ void IGame_Level::SoundEvent_Register(ref_sound_data_ptr S, float range)
 	snd_ER.clear_not_free();
 }
 
+// Cyclic gunfire in the engine (doc 08). Same algorithm as SoundEvent_Register(), fed with the numbers a vanilla
+// emitter would have taken from its sound (AI-reaction distance of the OGG comment, volume) instead of a ref_sound.
+void IGame_Level::SoundEvent_RegisterRaw(CObject* who, int type, const Fvector& pos, float max_ai_dist, float volume)
+{
+	PROF_EVENT("IGame_Level::SoundEvent_RegisterRaw");
+	if (!g_bLoaded || !who) return;
+	if (who->getDestroy()) return;
+	if (max_ai_dist < 0.1f) return;
+
+	float range = _min(max_ai_dist, max_ai_dist * volume);
+	if (range < 0.1f) return;
+	clamp(range, 0.1f, 500.f);
+
+	Fvector bb_size = {range, range, range};
+	g_SpatialSpace->q_box(snd_ER, 0, STYPE_REACTTOSOUND, pos, bb_size);
+
+	for (auto it = snd_ER.begin(); it != snd_ER.end(); ++it)
+	{
+		Feel::Sound* L = (*it)->dcast_FeelSound();
+		if (0 == L) continue;
+		CObject* CO = (*it)->dcast_CObject();
+		if (!CO || CO->getDestroy()) continue;
+
+		float dist = pos.distance_to((*it)->spatial.sphere.P);
+		if (dist > max_ai_dist) continue;
+		float Power = (1.f - dist / max_ai_dist) * volume;
+		if (Power > EPS_S)
+		{
+			float occ = Sound->get_occlusion_to((*it)->spatial.sphere.P, pos);
+			Power *= occ;
+			if (Power > EPS_S)
+			{
+				_esound_raw D = {L, who, type, pos, Power};
+				snd_EventsRaw.push_back(D);
+			}
+		}
+	}
+	snd_ER.clear_not_free();
+}
+
 void IGame_Level::SoundEvent_Dispatch()
 {
 	PROF_EVENT("IGame_Level::SoundEvent_Dispatch");
+	while (!snd_EventsRaw.empty())
+	{
+		_esound_raw& D = snd_EventsRaw.back();
+		if (D.dest && D.who && !D.who->getDestroy())
+			D.dest->feel_sound_new(D.who, D.type, CSound_UserDataPtr(), D.pos, D.power);
+		snd_EventsRaw.pop_back();
+	}
 	while (!snd_Events.empty())
 	{
 		_esound_delegate& D = snd_Events.back();
@@ -487,4 +541,9 @@ void IGame_Level::SoundEvent_OnDestDestroy(Feel::Sound* obj)
 
 	snd_Events.erase(std::remove_if(snd_Events.begin(), snd_Events.end(), rem_pred(obj)),
 	                 snd_Events.end());
+
+	// Cyclic gunfire (doc 08): drop the pending hearing events aimed at, or raised by, a destroyed object
+	snd_EventsRaw.erase(std::remove_if(snd_EventsRaw.begin(), snd_EventsRaw.end(),
+	                                   [obj](const _esound_raw& d) { return d.dest == obj; }),
+	                    snd_EventsRaw.end());
 }

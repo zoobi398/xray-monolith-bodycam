@@ -6,6 +6,7 @@
 #include "actor_defs.h"
 #include "player_hud_legs.h"
 #include "weapon_part_jiggle.h"
+#include "hud_anim_layers.h"
 
 #define SCOPE_ATTACH_IDX 2
 
@@ -320,6 +321,10 @@ struct attachable_hud_item
 	// handles...), opt-in via the item's own .ltx "jiggle_bones" key. No-op (and costs nothing) for any
 	// item that doesn't declare one.
 	CGunPartJiggleController m_jiggle;
+
+	// Independent animation layers (additive channels 2/3 of the weapon model) started by shots, HUD animation names,
+	// motion marks... Opt-in through the item's "hud_layers" key; no-op for any item that doesn't declare one.
+	CHudAnimLayers m_layers;
 
 	attachable_hud_item(player_hud* pparent) : m_parent(pparent), m_upd_firedeps_frame(u32(-1)), m_parent_hud_item(nullptr),
 		m_model(nullptr), m_attach_place_idx(0), m_active_hand_blend(nullptr), m_active_hand_generation(0) {

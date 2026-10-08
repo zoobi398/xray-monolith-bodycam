@@ -79,6 +79,13 @@ XRSOUND_API extern float psSoundDuckHoldMs;       // snd_duck_hold_ms: how long 
 XRSOUND_API extern float psSoundDuckAttackRate;   // snd_duck_attack_rate: gain units/s approaching the ducked target
 XRSOUND_API extern float psSoundDuckReleaseRate;  // snd_duck_release_rate: gain units/s releasing back to 1.0
 
+// Cyclic gunfire in the engine (doc 08_ENGINE_CHANGES_CYCLIC_GUNFIRE_IN_ENGINE.md). Off by default: with
+// snd_cyclic_native 0 (or on a weapon without custom_loop_sound) nothing below is ever used and the
+// scripted TRUE CYCLIC system keeps working exactly as before.
+XRSOUND_API extern int psSoundCyclicNative;       // snd_cyclic_native: 0 off (default), 1 on
+XRSOUND_API extern int psSoundCyclicDebug;        // snd_cyclic_debug: 0 off, 1 = log every cyclic event
+XRSOUND_API extern float psSoundCyclicPipelineMs; // snd_cyclic_pipeline_ms: constant delay between a shot and its sound (absorbs frame jitter)
+
 // One resolved material class (see sound_occlusion.ltx). loss_db/hf_loss_db apply once per crossed
 // surface; loss_db_per_m only applies when a matching entry+exit pair of the SAME material is found on
 // the same ray (real measured thickness) -- a single unpaired hit never guesses at a thickness.
@@ -448,6 +455,58 @@ public:
 /// definition (Sound Callback)
 typedef void __stdcall sound_event(ref_sound_data_ptr S, float range);
 
+/// Cyclic gunfire in the engine (doc 08): AI-hearing event raised by the native voice. The voice has no
+/// ref_sound/emitter behind it, so it cannot go through sound_event; the game side turns this into the same
+/// feel_sound_new() notification a vanilla weapon shot would produce. max_ai_dist comes from the AI-reaction
+/// distance in the sample's OGG comment, volume is the gain the shot is heard at.
+typedef void __stdcall sound_event_raw(CObject* who, int g_type, const Fvector& pos, float max_ai_dist, float volume);
+
+/// Cyclic gunfire in the engine (doc 08): one event handed by the weapon code to the native voice. The weapon
+/// (xrGame) resolves everything that depends on weapon state / .ltx (which samples for suppressed / subsonic /
+/// ADS / indoor, timing, fades) and passes the result here, so xrSound never reads the weapon configs and no
+/// script is involved per shot.
+enum ECyclicEvent
+{
+	cyc_begin = 0, // first shot of a burst
+	cyc_shot,      // any following shot
+	cyc_release,   // the weapon stopped firing (trigger released, reload, hide...)
+	cyc_abort,     // stop everything now, no end sample (death, weapon dropped / destroyed)
+	cyc_jam,       // jam: cut the loop now and play the end sample
+};
+
+struct SCyclicEvent
+{
+	ECyclicEvent type = cyc_shot;
+	CObject* owner = nullptr; // the actor (AI-hearing events)
+	int ai_type = 0;          // the weapon's own AI sound type (SOUND_TYPE_WEAPON_SHOOTING | ...)
+	int shot_no = 0;          // 1-based shot number inside the burst
+	bool last_shot = false;   // the weapon already knows that no further shot will follow
+	float real_rpm = 600.f;   // actual cadence of the weapon right now (upgrades included)
+
+	shared_str start_name;                      // sample played on shot 1 (variant already picked)
+	shared_str loop_name;                       // block loop, "" if the weapon has none (semi-auto)
+	float loop_sample_rpm = 600.f;              // rpm the loop was mixed at -> block length = 60 / rpm
+	int loop_shots = 0;                         // number of blocks in the loop file
+	shared_str trans_name;                      // optional indoor<->outdoor transition loop, "" if none
+	float trans_sample_rpm = 600.f;
+	int trans_shots = 0;
+	shared_str end_name;                        // tail played when firing stops (variant already picked)
+
+	float loop_delay_s = 0.f;                   // snd_shoot_loop_delay
+	float end_margin_s = 0.f;                   // snd_shoot_end_cycle_margin
+	bool start_cutoff_on_loop = true;           // snd_shoot_start_cutoff_*
+	bool start_cutoff_fade_enable = true;
+	bool start_cutoff_soft = false;
+	float start_cutoff_fade_s = 0.03f;
+	int start_cutoff_fade_curve = 1;            // 0 linear, 1 equal-power
+	bool loop_fadeout_enable = false;           // snd_shoot_loop_fadeout_*
+	float loop_fadeout_s = 0.06f;
+	int loop_fadeout_curve = 1;
+	bool end_fadein_enable = false;             // snd_shoot_end_fadein_*
+	float end_fadein_s = 0.03f;
+	int end_fadein_curve = 1;
+};
+
 /// definition (Sound Manager Interface)
 class XRSOUND_API CSound_manager_interface
 {
@@ -509,6 +568,14 @@ public:
 	// side records the timestamp on its own clock and derives the duck envelope from elapsed time, so no
 	// cross-module clock synchronization is needed. No-op at snd_duck_mode 0.
 	virtual void on_actor_weapon_shot() = 0;
+
+	// Cyclic gunfire in the engine (doc 08). True only when snd_cyclic_native is on AND the voice backend is
+	// usable on this device. Queried by the weapon code before it hands a shot to the native voice and by the
+	// scripts (cyclic_voice.ready()) to know whether the scripted system must stand down.
+	virtual bool cyclic_native_ready() = 0;
+	// Called by the weapon code for every event of a burst of a custom_loop_sound weapon (see SCyclicEvent).
+	virtual void cyclic_event(const SCyclicEvent& e) = 0;
+	virtual void set_handler_raw(sound_event_raw* E) = 0;
 
 	virtual void object_relcase(CObject* obj) = 0;
 	virtual const Fvector& listener_position() = 0;

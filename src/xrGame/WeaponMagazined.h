@@ -62,6 +62,8 @@ protected:
 
 	virtual void OnShot();
 	virtual void PlaySoundShot();
+	bool CyclicNativeShot(); // cyclic gunfire in the engine (doc 08): true when the native voice took this shot
+	void HudLayersOnShot();  // HUD animation layers (doc 09): shot / burst_start triggers
 
 	virtual void OnEmptyClick();
 

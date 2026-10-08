@@ -2,6 +2,7 @@
 
 #include "SoundRender_Core.h"
 #include "OpenALDeviceList.h"
+#include "SoundRender_CyclicVoice.h"
 #include <AL/efx.h>
 
 
@@ -97,6 +98,14 @@ public:
 	virtual void switch_device(LPCSTR device_name) override;
 
 	virtual void set_master_volume(float f);
+
+	// Cyclic gunfire in the engine (doc 08)
+	CSoundRender_CyclicVoice m_cyclic;
+	virtual bool cyclic_native_ready() override { return psSoundCyclicNative && m_cyclic.ready(); }
+	virtual void cyclic_event(const SCyclicEvent& e) override { if (psSoundCyclicNative) m_cyclic.on_event(e); }
+	virtual void cyclic_update(float dt) override { m_cyclic.update(dt); }
+	virtual void cyclic_pause(bool val) override { m_cyclic.pause(val); }
+	virtual void cyclic_stop() override { m_cyclic.stop_all(); }
 
 	virtual const Fvector& listener_position() { return Listener.position; }
 

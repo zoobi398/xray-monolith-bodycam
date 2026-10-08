@@ -367,6 +367,7 @@ void CSoundRender_CoreA::switch_device(LPCSTR device_name)
 		AlTarget->_destroy();
 	}
 
+	m_cyclic.destroy();
 	DestroyEffect();
 
 	ALCdevice* oldDevice = pDevice;
@@ -387,6 +388,7 @@ void CSoundRender_CoreA::switch_device(LPCSTR device_name)
 	}
 
 	LoadEffect();
+	m_cyclic.init(pDevice, m_is_supported ? slot : 0);
 
 	restart_emitters();
 	pause_emitters(false);
@@ -503,6 +505,9 @@ void CSoundRender_CoreA::_initialize(int stage)
 
 	LoadEffect();
 
+	// Cyclic gunfire voice (doc 08): created before the emitter targets so it cannot be starved of sources
+	m_cyclic.init(pDevice, m_is_supported ? slot : 0);
+
 	// Init listener struct
 	Listener.position.set(0.0f, 0.0f, 0.0f);
 	Listener.prevVelocity.set(0.0f, 0.0f, 0.0f);
@@ -549,6 +554,7 @@ void CSoundRender_CoreA::set_master_volume(float f)
 void CSoundRender_CoreA::_clear()
 {
 	inherited::_clear();
+	m_cyclic.destroy();
 	// remove targets
 	CSoundRender_Target* T = nullptr;
 	for (u32 tit = 0; tit < s_targets.size(); tit++)

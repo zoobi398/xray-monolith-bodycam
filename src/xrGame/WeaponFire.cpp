@@ -4,6 +4,8 @@
 
 #include "stdafx.h"
 #include "Weapon.h"
+#include "CyclicGunfire.h"
+#include "player_hud.h"
 #include "entity.h"
 #include "actor.h"
 
@@ -161,6 +163,53 @@ void CWeapon::FireEnd()
 {
 	CShootingObject::FireEnd();
 	StopShotEffector();
+
+	// Cyclic gunfire in the engine (doc 08): the weapon knows exactly when no further shot will come
+	CyclicNativeRelease();
+
+	// HUD animation layers (doc 09)
+	HudLayersOnFireEnd();
+}
+
+void CWeapon::HudLayersOnFireEnd()
+{
+	if (!ParentIsActor() || !IsAttachedToHUD()) return;
+	attachable_hud_item* hi = HudItemData();
+	if (hi && hi->m_layers.active())
+		hi->m_layers.on_fire_end();
+}
+
+void CWeapon::CyclicNativeRelease()
+{
+	if (!m_bCyclicSoundFlag || !ParentIsActor()) return;
+	if (!::Sound || !CyclicGunfire::session_active(ID())) return;
+	const float t = (fOneShotTime > 0.f) ? fOneShotTime : 0.1f;
+	SCyclicEvent e;
+	if (CyclicGunfire::make_release_event(ID(), IsZoomed(), H_Parent(), 0, 60.f / t, e))
+		::Sound->cyclic_event(e);
+}
+
+void CWeapon::CyclicNativeAbort()
+{
+	if (!m_bCyclicSoundFlag || !::Sound) return;
+	if (!CyclicGunfire::session_active(ID())) return;
+	CyclicGunfire::end_session(ID());
+	SCyclicEvent e;
+	e.type = cyc_abort;
+	::Sound->cyclic_event(e);
+}
+
+// Every cartridge left in the magazine is subsonic (ammo sections flagged is_subsonic = true) -- the native
+// counterpart of sound_loop_subsonic_simple.is_subsonic_ammo_loaded(), which only answers "yes" for a uniform magazine.
+bool CWeapon::CyclicAllSubsonic() const
+{
+	if (m_magazine.empty()) return false;
+	for (const CCartridge& c : m_magazine)
+	{
+		if (!(pSettings->line_exist(c.m_ammoSect, "is_subsonic") && pSettings->r_bool(c.m_ammoSect, "is_subsonic")))
+			return false;
+	}
+	return true;
 }
 
 //--DSR-- SilencerOverheat_start

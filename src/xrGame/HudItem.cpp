@@ -594,6 +594,14 @@ void CHudItem::UpdateCL()
 
 void CHudItem::OnMotionMark(u32 state, const motion_marks& M)
 {
+	// HUD animation layers bound to this mark (mark:<name>)
+	if (IsAttachedToHUD())
+	{
+		attachable_hud_item* hi = HudItemData();
+		if (hi && hi->m_layers.active())
+			hi->m_layers.on_mark(M.name);
+	}
+
 	::luabind::functor<bool> funct;
 	if (ai().script_engine().functor("_G.CHudItem__OnMotionMark", funct))
 		funct(state, *M.name, object().lua_game_object(), object().lua_game_object() ? object().lua_game_object()->Parent() : nullptr);

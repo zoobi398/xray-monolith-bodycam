@@ -29,7 +29,11 @@ struct CameraRecoil
 	float YawRho;            // AR(1) coefficient on the horizontal step; 0 = stock memoryless step
 	float LeanCoupling;      // gain on the actor's current roll when rotating the shot impulse; 0 = no lean bias
 	float RiseTimeMs;        // ms for the camera to ease into a fresh kick; 0 = instant (stock shape)
-	float MuzzlePivot;       // 0-1+: how much of Bodycam's vertical viewmodel rotation redirects around a
+	float YawSmoothMs;       // ms time constant of a SYMMETRIC low-pass on the horizontal recoil output
+	                         // (eases toward the target both when it grows and when it shrinks, so unlike
+	                         // RiseTimeMs it cannot ratchet one-sided); turns the per-shot "staircase" of the
+	                         // sideways drift into a continuous glide. 0 = instant, today's behaviour.
+	float MuzzlePivot;      // 0-1+: how much of Bodycam's vertical viewmodel rotation redirects around a
 	                         // muzzle-heavy pivot instead of rotating the whole viewmodel as one rigid
 	                         // block; 0 = current rigid behaviour, unchanged. See bodycam_simulation.cpp.
 	float YawCenterPull;     // 1/s: continuous exponential pull of the horizontal recoil angle back toward
@@ -92,6 +96,7 @@ struct CameraRecoil
 		YawRho(0.0f),
 		LeanCoupling(0.0f),
 		RiseTimeMs(0.0f),
+		YawSmoothMs(0.0f),
 		MuzzlePivot(0.0f),
 		YawCenterPull(0.0f),
 		DecompScale(1.0f),
@@ -128,6 +133,7 @@ struct CameraRecoil
 		YawRho = clone.YawRho;
 		LeanCoupling = clone.LeanCoupling;
 		RiseTimeMs = clone.RiseTimeMs;
+		YawSmoothMs = clone.YawSmoothMs;
 		MuzzlePivot = clone.MuzzlePivot;
 		YawCenterPull = clone.YawCenterPull;
 		DecompScale = clone.DecompScale;

@@ -41,6 +41,7 @@ void CWeaponShotEffector::Reset()
 	m_angle_horz = 0.0f;
 	m_output_vert = 0.0f;
 	m_output_horz = 0.0f;
+	m_yaw_settling = false;
 
 	m_prev_angle_vert = 0.0f;
 	m_prev_angle_horz = 0.0f;
@@ -221,6 +222,23 @@ void ApproachRise(float& out, float target, float rise_time_ms, float dt)
 	float t = 1.0f - expf(-rate * dt);
 	out += (target - out) * t;
 }
+
+// First-order low-pass toward 'target' with time constant smooth_ms, applied identically in both
+// directions (growing AND shrinking) -- unlike ApproachRise, so it adds a pure lag with no one-sided
+// bias. smooth_ms <= 0 means instant.
+void ApproachSmooth(float& out, float target, float smooth_ms, float dt)
+{
+	if (smooth_ms <= 0.0f)
+	{
+		out = target;
+		return;
+	}
+	const float t = 1.0f - expf(-dt * 1000.0f / smooth_ms);
+	out += (target - out) * t;
+}
+
+// radians (~0.017 deg): below this gap between the smoothed and the true yaw, snap and stop settling.
+const float kYawSettleEps = 0.0003f;
 }
 
 void CWeaponShotEffector::Update()
@@ -247,7 +265,10 @@ void CWeaponShotEffector::Update()
 	// the memory keeps "reloading" a step in whatever direction it last leaned every subsequent shot,
 	// fighting the pull on m_angle_horz itself and making late-burst recovery far weaker than the pull
 	// rate alone would suggest (diagnosed 17/09 from the bias concentrating in a magazine's last third).
-	if (m_cam_recoil.InsurgencyRecoil && m_cam_recoil.YawCenterPull > 0.0f)
+	// Paused while the burst is over and the smoothed yaw is only finishing its glide (YawSmoothMs): the
+	// pull would otherwise keep dragging the target toward 0 after release and haul the camera back.
+	const bool yaw_smooth = m_cam_recoil.InsurgencyRecoil && m_cam_recoil.YawSmoothMs > 0.0f;
+	if (m_cam_recoil.InsurgencyRecoil && m_cam_recoil.YawCenterPull > 0.0f && !(yaw_smooth && !m_actived))
 	{
 		const float pull_factor = expf(-m_cam_recoil.YawCenterPull * dt);
 		m_angle_horz *= pull_factor;
@@ -261,17 +282,36 @@ void CWeaponShotEffector::Update()
 	// instantly snaps low the moment a shot nudges the magnitude down (ApproachRise's "instant while
 	// shrinking" rule) -- a lag-then-snap ratchet that reads as a sticky, one-sided drift and never shows
 	// up at semi-auto pace, where each shot's rise time fully settles before the next one lands (16/09,
-	// diagnosed from exactly that semi-vs-auto difference). Horizontal is therefore always instant here,
+	// diagnosed from exactly that semi-vs-auto difference). Horizontal is therefore instant by default here,
 	// matching cam_step_angle_horz's existing "constant amplitude, not coupled to burst progression" design.
 	if (m_cam_recoil.InsurgencyRecoil && m_cam_recoil.RiseTimeMs > 0.0f)
 	{
 		ApproachRise(m_output_vert, m_angle_vert, m_cam_recoil.RiseTimeMs, dt);
-		m_output_horz = m_angle_horz;
 	}
 	else
 	{
 		m_output_vert = m_angle_vert;
+	}
+
+	// Opt-in horizontal smoothing (insurgency_yaw_smooth_ms, 05/10): a SYMMETRIC first-order low-pass, so
+	// it eases in both directions with the same time constant -- the one-sided "grow slowly / shrink
+	// instantly" asymmetry is exactly what made the rise-time approach ratchet (see above), this has none
+	// of it, it is a pure lag. It turns each shot's instantaneous sideways step (a staircase in the
+	// output) into a continuous glide. m_angle_horz stays the exact, unsmoothed state everything else
+	// (Relax, center-pull, clamps) operates on; only the camera-facing output is filtered. 0 = instant.
+	if (yaw_smooth)
+	{
+		ApproachSmooth(m_output_horz, m_angle_horz, m_cam_recoil.YawSmoothMs, dt);
+		m_yaw_settling = _abs(m_angle_horz - m_output_horz) > kYawSettleEps;
+		if (!m_yaw_settling)
+		{
+			m_output_horz = m_angle_horz; // close the last sliver exactly so the effector can be removed
+		}
+	}
+	else
+	{
 		m_output_horz = m_angle_horz;
+		m_yaw_settling = false;
 	}
 
 	m_delta_vert = m_output_vert - m_prev_angle_vert;

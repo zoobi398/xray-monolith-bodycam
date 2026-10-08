@@ -9,10 +9,54 @@
 float psHUDSoundVolume = 1.0f;
 float psHUDStepSoundVolume = 1.0f;
 
+// Per-shot Msg() dump of the near-fade gain factor for world sounds carrying fade_start/fade_full --
+// off by default, toggle via the "g_near_fade_debug_log" console command. See
+// docs/ENGINE_CHANGES_NEAR_FADE.md.
+BOOL g_near_fade_debug_log = FALSE;
+
 void InitHudSoundSettings()
 {
 	psHUDSoundVolume = pSettings->r_float("hud_sound", "hud_sound_vol_k");
 	psHUDStepSoundVolume = pSettings->r_float("hud_sound", "hud_step_sound_vol_k");
+}
+
+// Near-fade (22/09): gain factor for a world sound heard at distance 'dist', ramping linearly from 0
+// at 'start' to 1 at 'full'. 'full' <= 'start' means a hard on/off cut at 'start' instead of a ramp
+// (matches LoadNearFade's own clamp, kept here too since callers only have the resolved floats).
+static float NearFadeFactor(float dist, float start, float full)
+{
+	if (full <= start)
+		return dist >= start ? 1.f : 0.f;
+	if (dist <= start)
+		return 0.f;
+	if (dist >= full)
+		return 1.f;
+	return (dist - start) / (full - start);
+}
+
+void HUD_SOUND_ITEM::LoadNearFade(LPCSTR section, LPCSTR line, SSnd& s)
+{
+	LPCSTR str = pSettings->r_string(section, line);
+	string256 buf;
+	const int count = _GetItemCount(str);
+
+	if (count > 3)
+	{
+		_GetItem(str, 3, buf);
+		if (xr_strlen(buf) > 0)
+		{
+			s.fade_start = (float)atof(buf);
+			s.fade_set = s.fade_start > 0.f;
+		}
+	}
+	if (count > 4)
+	{
+		_GetItem(str, 4, buf);
+		if (xr_strlen(buf) > 0)
+			s.fade_full = (float)atof(buf);
+	}
+	if (s.fade_set && s.fade_full < s.fade_start)
+		s.fade_full = s.fade_start; // hard cut at fade_start, no ramp
 }
 
 void HUD_SOUND_ITEM::LoadSound(LPCSTR section, LPCSTR line,
@@ -30,8 +74,25 @@ void HUD_SOUND_ITEM::LoadSound(LPCSTR section, LPCSTR line,
 		SSnd& s = hud_snd.sounds.back();
 
 		LoadSound(section, sound_line, s.snd, type, &s.volume, &s.delay);
+		LoadNearFade(section, sound_line, s);
 		xr_sprintf(sound_line, "%s%d", line, ++k);
 	} //while
+
+	// Variants without their own near-fade fields inherit the first line's (snd_N_layer) -- so a
+	// weapon only has to write fade_start/fade_full once per layer, not once per variant.
+	if (!hud_snd.sounds.empty() && hud_snd.sounds.front().fade_set)
+	{
+		const SSnd& first = hud_snd.sounds.front();
+		for (SSnd& variant : hud_snd.sounds)
+		{
+			if (!variant.fade_set)
+			{
+				variant.fade_start = first.fade_start;
+				variant.fade_full = first.fade_full;
+				variant.fade_set = true;
+			}
+		}
+	}
 }
 
 void HUD_SOUND_ITEM::LoadSound(LPCSTR section,
@@ -114,6 +175,30 @@ void HUD_SOUND_ITEM::PlaySound(HUD_SOUND_ITEM& hud_snd,
 	//-Alundaio
 
 	hud_snd.m_activeSnd = &hud_snd.sounds[index];
+
+	// Near-fade (22/09, world sounds only): a layer authored for distant fire (e.g. snd_4_layer with
+	// a big fade_full) shouldn't play at full volume, or at all, when the NPC is actually close --
+	// see docs/ENGINE_CHANGES_NEAR_FADE.md. b_hud_mode sounds (the player's own weapon, sm_2D) are
+	// never affected. Below fade_start, no emitter is created at all: cheaper than letting it play
+	// and get culled, and it means this variant contributes nothing to AI sound perception either
+	// (SoundEvent_Register only ever sees sounds that actually got a real feedback emitter) -- by
+	// design, this is only meant to be set on the FAR layers, never on the closest one.
+	if (!b_hud_mode && hud_snd.m_activeSnd->fade_set)
+	{
+		const float dist = ::Sound->listener_position().distance_to(position);
+		const float k = NearFadeFactor(dist, hud_snd.m_activeSnd->fade_start, hud_snd.m_activeSnd->fade_full);
+		if (g_near_fade_debug_log)
+		{
+			Msg("* near-fade %s dist=%.1f start=%.1f full=%.1f k=%.2f%s", hud_snd.m_alias.c_str(), dist,
+				hud_snd.m_activeSnd->fade_start, hud_snd.m_activeSnd->fade_full, k, k <= EPS_S ? " SKIPPED" : "");
+		}
+		if (k <= EPS_S)
+		{
+			hud_snd.m_activeSnd = NULL;
+			return;
+		}
+		volume_mult *= k;
+	}
 
 	if (hud_snd.m_b_exclusive)
 	{

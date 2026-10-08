@@ -252,6 +252,13 @@ public:
 protected:
 	bool m_bTriStateReload;
 
+	// Cyclic gunfire in the engine (doc 08): custom_loop_sound = true in the weapon section. Read once in Load().
+	bool m_bCyclicSoundFlag = false;
+	void CyclicNativeRelease(); // trigger released / reload / hide / drop: close the burst of the native voice
+	void CyclicNativeAbort();   // death, weapon destroyed: stop the native voice without an end sample
+	void HudLayersOnFireEnd();  // HUD animation layers (doc 09): fire_end trigger
+	bool CyclicAllSubsonic() const;
+
 	// a misfire happens, you'll need to rearm weapon
 	bool bMisfire;
 	bool bClearJamOnly; //used for "reload" misfire animation

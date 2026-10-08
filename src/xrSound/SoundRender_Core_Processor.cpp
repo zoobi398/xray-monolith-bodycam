@@ -208,6 +208,9 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 		}
 	}
 
+	// Cyclic gunfire voice (doc 08): envelopes, start-sample cut, cleanup
+	cyclic_update(dt_sec);
+
 	// Events
 	update_events();
 
@@ -226,6 +229,18 @@ void CSoundRender_Core::update_events()
 		Handler(E.first, E.second);
 	}
 	s_events.clear_not_free();
+
+	// AI-hearing events from the cyclic voice (doc 08)
+	{
+		std::vector<SRawAIEvent> raw;
+		{
+			std::lock_guard<std::mutex> g(s_raw_lock);
+			raw.swap(s_raw_events);
+		}
+		if (HandlerRaw)
+			for (const SRawAIEvent& ev : raw)
+				HandlerRaw(ev.who, ev.type, ev.pos, ev.max_ai, ev.vol);
+	}
 }
 
 void CSoundRender_Core::statistic(CSound_stats* dest, CSound_stats_ext* ext)

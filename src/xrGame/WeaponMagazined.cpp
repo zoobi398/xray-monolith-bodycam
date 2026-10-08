@@ -22,6 +22,7 @@
 #include "script_game_object.h"
 #include "player_hud.h"
 #include "HudSound.h"
+#include "CyclicGunfire.h"
 
 #include "../build_config_defines.h"
 #include "WeaponRG6.h"
@@ -687,6 +688,20 @@ void CWeaponMagazined::UpdateCL()
 		}
 	}
 
+	// Cyclic gunfire in the engine (doc 08): the actor died or put the weapon away without a FireEnd
+	if (m_bCyclicSoundFlag && CyclicGunfire::session_active(ID()))
+	{
+		CEntityAlive* ea = smart_cast<CEntityAlive*>(H_Parent());
+		if (!ea || !ea->g_Alive())
+			CyclicNativeAbort();
+		else
+		{
+			CInventoryOwner* io = smart_cast<CInventoryOwner*>(H_Parent());
+			if (!io || io->inventory().ActiveItem() != smart_cast<CInventoryItem*>(this))
+				CyclicNativeRelease();
+		}
+	}
+
 	UpdateSounds();
 }
 
@@ -846,8 +861,50 @@ void CWeaponMagazined::SetDefaults()
 	CWeapon::SetDefaults();
 }
 
+// Cyclic gunfire in the engine (doc 08). Called for every shot before the vanilla shot sound: when the native voice
+// handles the weapon (snd_cyclic_native on, custom_loop_sound weapon of the actor, valid sample set) it takes the
+// shot and the vanilla sound is skipped, so nothing plays twice and no script has to mute it.
+bool CWeaponMagazined::CyclicNativeShot()
+{
+	if (!m_bCyclicSoundFlag || !ParentIsActor()) return false;
+	if (!::Sound || !::Sound->cyclic_native_ready()) return false;
+
+	if (bMisfire)
+	{
+		// vanilla jam: close the burst now, the misfire click is played by the regular path
+		if (CyclicGunfire::session_active(ID()))
+		{
+			CyclicGunfire::end_session(ID());
+			SCyclicEvent j;
+			j.type = cyc_jam;
+			::Sound->cyclic_event(j);
+		}
+		return false;
+	}
+
+	CyclicGunfire::SShotCtx c;
+	c.section = cNameSect().c_str();
+	c.weapon_id = ID();
+	c.owner = H_Parent();
+	c.ai_type = (int)m_eSoundShot;
+	c.shot_no = m_iShotNum;
+	c.last_shot = (iAmmoElapsed <= 1) || (m_iQueueSize > 0 && m_iShotNum >= m_iQueueSize);
+	const float one_shot = ((GetCurrentFireMode() >= 2 || cycleDownCheck()) ? fModeShotTime : fOneShotTime);
+	c.real_rpm = 60.f / ((one_shot > 0.f) ? one_shot : 0.1f);
+	c.suppressed = IsSilencerAttached();
+	c.ads = IsZoomed();
+	c.all_subsonic = (c.shot_no <= 1 && c.suppressed && CyclicGunfire::wants_subsonic_scan(c.section)) ? CyclicAllSubsonic() : false;
+
+	SCyclicEvent e;
+	if (!CyclicGunfire::make_shot_event(c, e)) return false;
+	::Sound->cyclic_event(e);
+	return true;
+}
+
 void CWeaponMagazined::PlaySoundShot()
 {
+	if (CyclicNativeShot()) return;
+
 	if (ParentIsActor())
 	{
 		if (bMisfire)
@@ -892,10 +949,21 @@ void CWeaponMagazined::PlaySoundShot()
 	m_sounds.PlaySound(m_sSndShotCurrent.c_str(), get_LastFP(), H_Root(), !!GetHUDmode(), false, (u8)-1);
 }
 
+void CWeaponMagazined::HudLayersOnShot()
+{
+	if (!ParentIsActor() || !IsAttachedToHUD()) return;
+	attachable_hud_item* hi = HudItemData();
+	if (hi && hi->m_layers.active())
+		hi->m_layers.on_shot(m_iShotNum);
+}
+
 void CWeaponMagazined::OnShot()
 {
 	// Shot Sound
 	PlaySoundShot();
+
+	// HUD animation layers
+	HudLayersOnShot();
 
 	// Camera
 	AddShotEffector();

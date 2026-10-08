@@ -1180,6 +1180,11 @@ void CCC_Register()
     CMD4(CCC_Float, "snd_duck_attack_rate", &psSoundDuckAttackRate, 0.5f, 100.f);
     CMD4(CCC_Float, "snd_duck_release_rate", &psSoundDuckReleaseRate, 0.5f, 100.f);
 
+    // Cyclic gunfire in the engine (doc 08). Both off by default.
+    CMD4(CCC_Integer, "snd_cyclic_native", &psSoundCyclicNative, 0, 1);
+    CMD4(CCC_Integer, "snd_cyclic_debug", &psSoundCyclicDebug, 0, 1);
+    CMD4(CCC_Float, "snd_cyclic_pipeline_ms", &psSoundCyclicPipelineMs, 0.f, 100.f);
+
     CMD4(CCC_Integer, "snd_efx_reverb_overwrite", &reverb_overwrite, FALSE, TRUE);
 
     CMD4(CCC_Float, "snd_efx_reverb_overwrite_density", &psReverbDensity, 0.f, 1.f);

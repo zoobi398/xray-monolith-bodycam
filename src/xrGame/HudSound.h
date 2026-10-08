@@ -50,7 +50,19 @@ struct HUD_SOUND_ITEM
 		ref_sound snd;
 		float delay; //задержка перед проигрыванием
 		float volume; //громкость
+
+		// Near-fade (world sounds only): below fade_start (m) this variant isn't played at all (no
+		// emitter created); it ramps linearly to full volume by fade_full (m). fade_set is false
+		// (both ignored) unless the .ltx line carries the optional 4th field. See LoadNearFade() and
+		// HUD_SOUND_ITEM::PlaySound() for where these are read/applied.
+		float fade_start = 0.f;
+		float fade_full = 0.f;
+		bool fade_set = false;
 	};
+
+	// Reads the optional near-fade fields (items 3/4 of the ltx line, 0-based) into s.fade_start/
+	// fade_full/fade_set. No-op (fade_set stays false) if the line doesn't carry them.
+	static void LoadNearFade(LPCSTR section, LPCSTR line, SSnd& s);
 
 	shared_str m_alias;
 	SSnd* m_activeSnd;

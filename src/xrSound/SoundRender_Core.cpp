@@ -35,6 +35,9 @@ float psSoundDuckStrength = 0.55f;
 float psSoundDuckHoldMs = 120.f;
 float psSoundDuckAttackRate = 18.f;
 float psSoundDuckReleaseRate = 3.f;
+int psSoundCyclicNative = 0;
+int psSoundCyclicDebug = 0;
+float psSoundCyclicPipelineMs = 20.f;
 float psSoundCull = 0.01f;
 float psSoundRolloff = 0.75f;
 u32 psSoundModel = 0;
@@ -132,6 +135,7 @@ void CSoundRender_Core::_clear()
 
 void CSoundRender_Core::stop_emitters()
 {
+	cyclic_stop();
 	for (u32 eit = 0; eit < s_emitters.size(); eit++)
 		s_emitters[eit]->stop(FALSE);
 }
@@ -145,6 +149,7 @@ void CSoundRender_Core::restart_emitters()
 
 int CSoundRender_Core::pause_emitters(bool val)
 {
+	cyclic_pause(val);
 	m_iPauseCounter += val ? +1 : -1;
 	VERIFY(m_iPauseCounter>=0);
 
@@ -189,6 +194,21 @@ void CSoundRender_Core::_restart()
 void CSoundRender_Core::set_handler(sound_event* E)
 {
 	Handler = E;
+}
+
+// Cyclic gunfire in the engine (doc 08): AI-hearing events raised by the native voice (game thread), drained by
+// update_events() on the sound task, exactly where the emitters' own events are dispatched.
+void CSoundRender_Core::push_raw_event(CObject* who, int type, float max_ai, float vol)
+{
+	SRawAIEvent ev;
+	ev.who = who;
+	ev.type = type;
+	ev.max_ai = max_ai;
+	ev.vol = vol;
+	ev.pos = listener_position();
+	std::lock_guard<std::mutex> g(s_raw_lock);
+	if (s_raw_events.size() < 256)
+		s_raw_events.push_back(ev);
 }
 
 void CSoundRender_Core::set_geometry_occ(CDB::MODEL* M)

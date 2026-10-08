@@ -1,4 +1,4 @@
-# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil + sound occlusion + gun-part jiggle
+# X-Ray Monolith Bodycam MT -- fade audio + Insurgency-style recoil + sound occlusion + gun-part jiggle + cyclic gunfire voice + HUD animation layers
 
 Personal fork of [asuparabekon/xray-monolith-bodycam](https://github.com/asuparabekon/xray-monolith-bodycam)
 (itself the X-Ray Monolith MT + Bodycam camera/viewmodel + objective-camera PiP scope build). This
@@ -12,7 +12,8 @@ fork's own additions, on top of everything already in the upstream build:
    opt-in (per-weapon, `.ltx`-gated), fully backward-compatible overhaul of the camera recoil system:
    short-term-memory horizontal kick with optional lean coupling, animation clips that get visibly less
    "snappy" across a sustained full-auto burst instead of hard-cutting to the same frame every shot, and
-   a one-shot viewmodel "release" kick right as a burst genuinely ends. Full writeup, with every changed
+   a one-shot viewmodel "release" kick right as a burst genuinely ends, and an optional symmetric low-pass on the horizontal recoil
+   (`insurgency_yaw_smooth_ms`) that turns the per-shot sideways "staircase" into a continuous glide. Full writeup, with every changed
    function and every new `.ltx` key: [`docs/ENGINE_CHANGES_INSURGENCY_RECOIL.md`](docs/ENGINE_CHANGES_INSURGENCY_RECOIL.md).
 3. **Material-aware sound occlusion with real diffraction, plus actor-fire priority ducking** --
    `snd_occlusion_mode 1` replaces the original single-ray flat `-8dB` occlusion with a per-material-class
@@ -33,6 +34,16 @@ fork's own additions, on top of everything already in the upstream build:
    independent per-bone tuning and per-axis hinge limits, configured entirely from `.ltx`. Opt-in per
    weapon (`jiggle_bones`), costs nothing for any weapon that doesn't declare it. Experimental: first
    version, being tuned in-game. Full writeup: [`docs/ENGINE_CHANGES_GUN_PART_JIGGLE.md`](docs/ENGINE_CHANGES_GUN_PART_JIGGLE.md).
+5. **Near-fade for layered NPC gunshot sounds** -- an optional 4th/5th field on a world sound's `.ltx` line makes a distant-only
+   layer (`snd_X_layer`) skip playback, and fade in with distance, instead of playing at full volume when the NPC is close.
+   Opt-in per sound line. Writeup: [`docs/ENGINE_CHANGES_NEAR_FADE.md`](docs/ENGINE_CHANGES_NEAR_FADE.md).
+6. **Cyclic gunfire in the engine (native audio voice)** -- the actor's `custom_loop_sound` weapons (start / looped blocks / end
+   samples, as used by the TRUE CYCLIC sound mod) can be played by a native voice with its own OpenAL sources: block-exact looping
+   that follows the real shot interval, an end sample that starts on a block boundary, and AI-hearing events for every shot.
+   `snd_cyclic_native 1` to enable (default 0). First cut, being tested. Writeup: [`docs/ENGINE_CHANGES_CYCLIC_GUNFIRE_IN_ENGINE.md`](docs/ENGINE_CHANGES_CYCLIC_GUNFIRE_IN_ENGINE.md).
+7. **HUD animation layers** -- independent additive animation layers on a weapon's own model (belt movement, carry handle, ...),
+   started by shots, burst start / end, HUD animation names, motion marks or Lua, with their own duration, never cut by the main
+   animation. Opt-in per weapon (`hud_layers`). Writeup and animator guide: [`docs/ENGINE_CHANGES_HUD_ANIM_LAYERS.md`](docs/ENGINE_CHANGES_HUD_ANIM_LAYERS.md).
 
 Everything else -- the Bodycam camera/viewmodel system, objective-camera true PiP scopes, MCM menus,
 build/install instructions, modder integration guide -- is upstream `asuparabekon` work, documented in
@@ -45,7 +56,8 @@ None of these features touch anything unless explicitly turned on (a weapon's `.
 script call for fade, a console command/MCM toggle for occlusion and ducking), and none are used by any
 existing content in this repository by default (the fade API's only caller is an external gameplay mod;
 the recoil system is off for every weapon unless `insurgency_recoil`/`insurgency_shot_anim_sustain` is
-set; `snd_occlusion_mode` and `snd_duck_mode` both default to `0`). A stock weapon, a stock sound, or a
+set; `snd_occlusion_mode` and `snd_duck_mode` both default to `0`; `snd_cyclic_native` defaults to `0`; HUD animation layers
+exist only for a weapon whose HUD section declares `hud_layers`). A stock weapon, a stock sound, or a
 build of this repo that never touches the new `.ltx` keys/console commands behaves identically to
 upstream. See each doc's "Backward compatibility" section for how that's verified.
 

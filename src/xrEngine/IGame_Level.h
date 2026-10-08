@@ -93,6 +93,17 @@ public: // deferred sound events
 	};
 
 	xr_vector<_esound_delegate> snd_Events;
+
+	// Cyclic gunfire in the engine (doc 08): hearing events of the native voice, which has no ref_sound behind it
+	struct _esound_raw
+	{
+		Feel::Sound* dest;
+		CObject* who;
+		int type;
+		Fvector pos;
+		float power;
+	};
+	xr_vector<_esound_raw> snd_EventsRaw;
 public:
 	// Main, global functions
 	IGame_Level();
@@ -125,6 +136,7 @@ public:
 	void SetViewEntity(CObject* O); // { pCurrentViewEntity=O; }
 
 	void SoundEvent_Register(ref_sound_data_ptr S, float range);
+	void SoundEvent_RegisterRaw(CObject* who, int type, const Fvector& pos, float max_ai_dist, float volume);
 	void SoundEvent_Dispatch();
 	void SoundEvent_OnDestDestroy(Feel::Sound*);
 

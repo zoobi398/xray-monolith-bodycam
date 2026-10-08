@@ -584,6 +584,7 @@ void hud_item_measures::load(const shared_str& sect_name, IKinematics* K)
 
 attachable_hud_item::~attachable_hud_item()
 {
+	m_layers.remove();
 	m_jiggle.remove();
 
 	if (m_model)
@@ -620,6 +621,7 @@ void attachable_hud_item::load(const shared_str& sect_name)
 	m_hand_motions = m_parent->get_hand_motions(*sect_name);
 
 	m_jiggle.install(this, sect_name);
+	m_layers.install(this, sect_name);
 }
 
 player_hud_motion* attachable_hud_item::find_motion(const shared_str& anm_name)
@@ -647,6 +649,8 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 	float speed, bool bMixIn2)
 {
 	player_hud_motion* anm = find_motion(anm_name_b);
+	if (m_layers.active())
+		m_layers.on_anim(anm_name_b); // layers bound to this HUD animation name (anim:<name or pattern>)
 	rnd_idx = (u8)Random.randI(anm->m_animations.size());
 	const motion_descr& M = anm->m_animations[rnd_idx];
 	if (speed == 1.f)

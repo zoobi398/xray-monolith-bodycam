@@ -4,6 +4,9 @@
 #include "SoundRender_Environment.h"
 #include "SoundRender_Cache.h"
 
+#include <mutex>
+#include <vector>
+
 class CNotificationClient;
 
 class CSoundRender_Core : public CSound_manager_interface
@@ -130,6 +133,29 @@ public:
 	// fTimer_Value itself.
 	float m_actor_last_shot_time = -1000.f;
 	virtual void on_actor_weapon_shot() override { m_actor_last_shot_time = fTimer_Value; }
+
+	// Cyclic gunfire in the engine (doc 08). The base class has no voice backend: CSoundRender_CoreA
+	// overrides this once the native voice exists (phase 2).
+	virtual bool cyclic_native_ready() override { return false; }
+	virtual void cyclic_event(const SCyclicEvent& e) override {}
+	virtual void cyclic_update(float dt) {}
+	virtual void cyclic_pause(bool val) {}
+	virtual void cyclic_stop() {}
+
+	// AI-hearing events raised by the native voice (see push_raw_event in SoundRender_Core.cpp)
+	struct SRawAIEvent
+	{
+		CObject* who;
+		int type;
+		float max_ai;
+		float vol;
+		Fvector pos;
+	};
+	std::vector<SRawAIEvent> s_raw_events;
+	std::mutex s_raw_lock;
+	sound_event_raw* HandlerRaw = nullptr;
+	virtual void set_handler_raw(sound_event_raw* E) override { HandlerRaw = E; }
+	void push_raw_event(CObject* who, int type, float max_ai, float vol);
 
 	// Thin passthroughs to the AL_EXT_EFX filter object functions, which are per-device extension
 	// function pointers private to CSoundRender_CoreA (loaded via LOAD_PROC, not statically linked).

@@ -9,12 +9,42 @@
 #include "pch_script.h"
 #include "script_sound.h"
 #include "script_game_object.h"
+#include "CyclicGunfire.h"
+#include "player_hud.h"
 
 using namespace luabind;
+
+// Cyclic gunfire in the engine (doc 08). Lets the scripted TRUE CYCLIC system detect that the engine voice is
+// available (snd_cyclic_native on + usable backend) and stand down for the weapons the engine now handles.
+// Scripts must treat a missing `cyclic_voice` table as "engine without the feature" (older exe).
+static bool cyclic_voice_ready()
+{
+	return ::Sound && ::Sound->cyclic_native_ready();
+}
+
+// HUD animation layers (doc 09): hud_layers.play("<layer section>") starts a layer of the weapon in the main hand.
+static bool hud_layers_play(LPCSTR layer_section)
+{
+	if (!g_player_hud) return false;
+	attachable_hud_item* hi = g_player_hud->attached_item(0);
+	return hi && hi->m_layers.play_by_name(layer_section);
+}
 
 #pragma optimize("s",on)
 void CScriptSound::script_register(lua_State* L)
 {
+	module(L, "hud_layers")
+	[
+		def("play", &hud_layers_play)
+	];
+
+	module(L, "cyclic_voice")
+	[
+		def("ready", &cyclic_voice_ready),
+		def("set_indoor", &CyclicGunfire::set_indoor),
+		def("indoor", &CyclicGunfire::get_indoor)
+	];
+
 	module(L)
 	[
 		class_<CSound_params>("sound_params")

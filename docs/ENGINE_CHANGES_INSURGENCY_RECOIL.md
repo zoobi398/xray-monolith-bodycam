@@ -875,6 +875,40 @@ not -1 because pivot_y is legitimately negative; copied in Clone and hip->zoom) 
 (targets, follow responses, ADS blend, pivot correction). Values are not range-clamped by the .ltx path
 (the sliders' ranges above are the tested ones). Weapons without the keys behave exactly as before.
 
+## Update (05/10) -- `insurgency_yaw_smooth_ms`: smoothing of the horizontal drift
+
+Problem: each shot adds an instantaneous sideways step to `m_angle_horz` and the camera-facing output equals
+it with no filtering, so the horizontal drift reads as a staircase (and `insurgency_rise_time_ms` never
+touches horizontal -- see the 16/09 note in `CWeaponShotEffector::Update`: its asymmetric "grow slowly /
+shrink instantly" easing ratcheted one-sided on a direction-reversing random walk).
+
+New `.ltx` keys: `insurgency_yaw_smooth_ms` (hip) and `zoom_insurgency_yaw_smooth_ms` (ADS, absent = inherits
+the hip value). `0` (default, absent) = instant = exactly the previous behaviour. Unit: milliseconds, the time
+constant of a first-order low-pass; larger = smoother and more lag. Only active with `insurgency_recoil = 1`.
+
+Implementation (`EffectorShot.cpp` `Update()`): `m_output_horz` follows `m_angle_horz` with
+`out += (target - out) * (1 - exp(-dt*1000/smooth_ms))`, identical in both directions (pure lag, no bias).
+`m_angle_horz` stays the exact unsmoothed state that `Relax()`, center-pull and the clamps work on; only the
+camera-facing output (which the Bodycam viewmodel-follow also reads via `GetOutputHorz()`, so arm/gun and
+camera stay consistent) is filtered. Two details needed for correctness:
+- `IsActive()` is now `m_actived || m_yaw_settling`: `ActorCameras.cpp::update_camera` removes the camera
+  effector as soon as it is inactive (immediately at trigger release with `cam_return = 0`), which would cut
+  the glide short. `m_yaw_settling` keeps it alive until the gap to the true angle is < 0.0003 rad (then the
+  last sliver is closed exactly). It is always false when the key is 0.
+- `insurgency_yaw_center_pull` is paused while only settling after the burst (otherwise it would keep
+  dragging the target to 0 and pull the camera back after release).
+
+Suggested starting point: 80-120 ms at ~650 RPM (shots 92 ms apart -> each step ~55-65% done before the next).
+Does not change the randomness of the walk itself (`insurgency_yaw_rho` / `cam_step_angle_horz` do), only how
+smoothly it is traversed. Compiled clean (`DX11-AVX|x64`); NOT yet tested in game.
+
+## Tried and reverted (06/10) -- camera-recoil "punch" split
+
+Implemented a Sandstorm-style split of each vertical kick into a permanent part and a part that returns on its own
+(`insurgency_punch_*` keys + 5 sliders), then removed it entirely the same day: with the default carry-over the only
+visible change was the camera drifting back after release, which was judged not worth keeping. No trace is left in the
+engine, the MCM tab or the labels. (Idea source: `INSURGENCY_DECOMPILATION_PROJECT/mechanics/RECUL.md` section 2/4/5.)
+
 ## Testing status
 
 Compiled clean (`DX11-AVX|x64`, `xrEngine` target, 0 errors, only pre-existing unrelated warnings).

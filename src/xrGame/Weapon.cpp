@@ -818,6 +818,9 @@ void CWeapon::Load(LPCSTR section)
 	iAmmoElapsed = pSettings->r_s32(section, "ammo_elapsed");
 	iMagazineSize = pSettings->r_s32(section, "ammo_mag_size");
 
+	// Cyclic gunfire in the engine (doc 08): opt-in per weapon, same key the scripted system already uses.
+	m_bCyclicSoundFlag = READ_IF_EXISTS(pSettings, r_bool, section, "custom_loop_sound", false);
+
 	////////////////////////////////////////////////////
 	// дисперсия стрельбы
 
@@ -877,6 +880,7 @@ void CWeapon::Load(LPCSTR section)
 	cam_recoil.YawRho = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_yaw_rho", 0.0f);
 	cam_recoil.LeanCoupling = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_lean_coupling", 0.0f);
 	cam_recoil.RiseTimeMs = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_rise_time_ms", 0.0f);
+	cam_recoil.YawSmoothMs = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_yaw_smooth_ms", 0.0f);
 	cam_recoil.MuzzlePivot = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_muzzle_pivot", 0.0f);
 	cam_recoil.YawCenterPull = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_yaw_center_pull", 0.0f);
 	cam_recoil.DecompScale = READ_IF_EXISTS(pSettings, r_float, section, "insurgency_decomp_scale", 1.0f);
@@ -921,6 +925,7 @@ void CWeapon::Load(LPCSTR section)
 	zoom_cam_recoil.YawRho = cam_recoil.YawRho;
 	zoom_cam_recoil.LeanCoupling = cam_recoil.LeanCoupling;
 	zoom_cam_recoil.RiseTimeMs = cam_recoil.RiseTimeMs;
+	zoom_cam_recoil.YawSmoothMs = cam_recoil.YawSmoothMs;
 	zoom_cam_recoil.MuzzlePivot = cam_recoil.MuzzlePivot;
 	zoom_cam_recoil.YawCenterPull = cam_recoil.YawCenterPull;
 	zoom_cam_recoil.DecompScale = cam_recoil.DecompScale;
@@ -989,6 +994,10 @@ void CWeapon::Load(LPCSTR section)
 	if (pSettings->line_exist(section, "zoom_insurgency_rise_time_ms"))
 	{
 		zoom_cam_recoil.RiseTimeMs = pSettings->r_float(section, "zoom_insurgency_rise_time_ms");
+	}
+	if (pSettings->line_exist(section, "zoom_insurgency_yaw_smooth_ms"))
+	{
+		zoom_cam_recoil.YawSmoothMs = pSettings->r_float(section, "zoom_insurgency_yaw_smooth_ms");
 	}
 	if (pSettings->line_exist(section, "zoom_insurgency_muzzle_pivot"))
 	{

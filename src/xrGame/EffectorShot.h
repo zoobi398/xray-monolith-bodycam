@@ -50,6 +50,13 @@ protected:
 	float m_output_vert;
 	float m_output_horz;
 
+	// True while CameraRecoil::YawSmoothMs is on and m_output_horz has not yet caught up with
+	// m_angle_horz. Keeps IsActive() true after the burst ended so the camera effector is not removed
+	// (ActorCameras.cpp::update_camera) before the smoothed yaw has finished gliding to its target --
+	// otherwise the last shots' sideways step would be cut short at trigger release. Always false when
+	// YawSmoothMs is 0.
+	bool m_yaw_settling;
+
 private:
 	CRandom m_Random;
 	s32 m_LastSeed;
@@ -65,7 +72,7 @@ public:
 	void UpdateCameraRecoil(const CameraRecoil& cam_recoil);
 	void Reset();
 
-	IC bool IsActive() { return m_actived; }
+	IC bool IsActive() { return m_actived || m_yaw_settling; }
 	//		void	SetActive			(bool Active)		{			m_actived = Active;		}
 	IC void StopShoting() { m_shot_end = true; }
 
